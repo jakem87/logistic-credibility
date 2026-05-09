@@ -47,6 +47,8 @@ from credibility import (
     predict_jdecay_scalar,
     fit_jdecay_continuous,
     predict_jdecay_continuous,
+    fit_jdecay_tercile,
+    predict_jdecay_tercile,
     eval_all_models,
     plot_zcurves,
 )
@@ -84,12 +86,14 @@ def main(make_plot: bool = False) -> None:
     fit_bs   = fit_bs_standard(df_train)
     fit_sc   = fit_jdecay_scalar(df_train)
     fit_cont = fit_jdecay_continuous(df_train)
+    fit_trc  = fit_jdecay_tercile(df_train)
 
     # 3. Generate test predictions (relative space)
     preds = {
-        "Bühlmann-Straub (standard)": predict_bs_standard(fit_bs, df_test),
-        "Joint-Decay (scalar λ)":     predict_jdecay_scalar(fit_sc, df_test),
-        "Joint-Decay (continuous λ)": predict_jdecay_continuous(fit_cont, df_test),
+        "Bühlmann-Straub (standard)":      predict_bs_standard(fit_bs, df_test),
+        "Joint-Decay (scalar λ)":          predict_jdecay_scalar(fit_sc, df_test),
+        "Joint-Decay (continuous λ)":      predict_jdecay_continuous(fit_cont, df_test),
+        "Joint-Decay (tercile λ) [MLE]":   predict_jdecay_tercile(fit_trc, df_test),
     }
     # Market mean and last-year baselines
     preds["Market Mean (baseline)"] = np.ones(len(df_test))
@@ -103,6 +107,7 @@ def main(make_plot: bool = False) -> None:
         "Bühlmann-Straub (standard)",
         "Joint-Decay (scalar λ)",
         "Joint-Decay (continuous λ)",
+        "Joint-Decay (tercile λ) [MLE]",
     ]
     preds_ordered = {k: preds[k] for k in display_order if k in preds}
     results = eval_all_models(df_test, preds_ordered)

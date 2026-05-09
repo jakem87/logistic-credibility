@@ -309,9 +309,17 @@ def _nll_gamma(params: np.ndarray, df: pd.DataFrame, mode: str = "scalar") -> fl
     if mode == "scalar":
         lam  = float(expit(params[5]))
         fbar = ewma_fbar(df, lam)
-    else:
+    elif mode == "continuous":
         lam_vec = expit(params[5] + params[6] * df["log_mean_expo_sc"].values)
         fbar    = ewma_fbar_vec(df, lam_vec)
+    else:  # tercile
+        lam_sm, lam_md, lam_lg = expit(params[5]), expit(params[6]), expit(params[7])
+        df_reset = df.reset_index(drop=True)
+        fbar = np.empty(len(df_reset))
+        for trc, lam_t in (("Small", lam_sm), ("Mid", lam_md), ("Large", lam_lg)):
+            idx = df_reset.index[df_reset["size_tercile"] == trc].tolist()
+            if idx:
+                fbar[idx] = ewma_fbar(df_reset.loc[idx], lam_t)
 
     base  = np.exp(alpha + beta * df["log_expo_sc"].values)
     Z     = expit(az + bz * df["log_expo_used_sc"].values)
@@ -389,6 +397,49 @@ def predict_jdecay_continuous(fit: dict, df: pd.DataFrame) -> np.ndarray:
     fbar    = ewma_fbar_vec(df, lam_vec)
     base    = np.exp(p[0] + p[1] * df["log_expo_sc"].values)
     Z       = expit(p[2] + p[3] * df["log_expo_used_sc"].values)
+    return (1 - Z) * base + Z * fbar
+
+
+# ---------------------------------------------------------------------------
+# Joint-Decay tercile λ (MLE)
+#
+# Three free decay parameters (lamSm, lamMd, lamLg) estimated jointly with
+# the continuous complement exp(alpha + beta*log_expo_sc) via MLE.
+#
+# Note: without Bayesian priors, estimates can be noisy for terciles with
+# few companies. The R/brms version regularises via Normal(0, 1.5) priors on
+# each lam parameter. Results may therefore differ from Table 3.
+# ---------------------------------------------------------------------------
+
+def fit_jdecay_tercile(df_train: pd.DataFrame) -> dict:
+    """Fit Joint-Decay model with tercile-specific decay parameters (MLE)."""
+    x0     = np.array([0.0, 0.0, -1.0, 0.5, 1.0, 0.0, 0.0, 0.0])
+    bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6), (-6, 6), (-6, 6)]
+
+    res = _multi_optim(lambda p: _nll_gamma(p, df_train, "tercile"), x0, bounds)
+    p   = res.x
+    print(f"  Joint-Decay tercile (MLE): az={p[2]:.2f}  bz={p[3]:.2f}  "
+          f"lam_Sm={float(expit(p[5])):.3f}  lam_Md={float(expit(p[6])):.3f}  "
+          f"lam_Lg={float(expit(p[7])):.3f}")
+    return {"type": "jdecay_tercile_mle", "par": p}
+
+
+def predict_jdecay_tercile(fit: dict, df: pd.DataFrame) -> np.ndarray:
+    """Predict from fitted tercile-λ Joint-Decay model."""
+    p       = fit["par"]
+    lam_sm  = float(expit(p[5]))
+    lam_md  = float(expit(p[6]))
+    lam_lg  = float(expit(p[7]))
+    base    = np.exp(p[0] + p[1] * df["log_expo_sc"].values)
+    Z       = expit(p[2] + p[3] * df["log_expo_used_sc"].values)
+
+    df_r = df.reset_index(drop=True)
+    fbar = np.empty(len(df_r))
+    for trc, lam_t in (("Small", lam_sm), ("Mid", lam_md), ("Large", lam_lg)):
+        idx = df_r.index[df_r["size_tercile"] == trc].tolist()
+        if idx:
+            fbar[idx] = ewma_fbar(df_r.loc[idx], lam_t)
+
     return (1 - Z) * base + Z * fbar
 
 
