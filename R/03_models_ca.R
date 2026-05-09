@@ -403,38 +403,38 @@ predict_jdecay_tercile <- function(fit, df_new) {
 }
 
 # -----------------------------------------------------------------------------
-# Fit all models on training data
+# Fit all models on training data  (CA only — OL fitting is in 04_models_ol.R)
 # -----------------------------------------------------------------------------
 
-message("\n--- Fitting models (Commercial Auto) ---")
+if (exists("LINE_OF_BUSINESS") && LINE_OF_BUSINESS == "ca") {
 
-models <- list(
-  bs_standard   = fit_bs_standard(df_train),
-  bs_best_patch = fit_bs_best_patch(df_train),
-  glmm          = fit_glmm(df_train),
-  jdecay_scalar = fit_jdecay_scalar(df_train),
-  jdecay_cont   = fit_jdecay_continuous(df_train),
-  jdecay_tercile = fit_jdecay_tercile(
-    df_train,
-    rds_path = file.path(MODEL_DIR, "ca_jdecay_tercile.rds")
-  )
-)
+  message("\n--- Fitting models (Commercial Auto) ---")
 
-# -----------------------------------------------------------------------------
-# Generate test-set predictions (relative space)
-# -----------------------------------------------------------------------------
-
-df_test <- df_test %>%
-  mutate(
-    pred_market_mean   = 1,
-    pred_last_year     = lr_lag1 / mu_t,
-    pred_bs_standard   = predict_bs_standard(models$bs_standard,   .),
-    pred_bs_best_patch = predict_bs_best_patch(models$bs_best_patch, .),
-    pred_glmm          = predict(models$glmm, newdata = ., type = "response",
-                                  allow.new.levels = FALSE),
-    pred_jdecay_scalar = predict_jdecay_scalar(models$jdecay_scalar, .),
-    pred_jdecay_cont   = predict_jdecay_continuous(models$jdecay_cont, .),
-    pred_jdecay_tercile = predict_jdecay_tercile(models$jdecay_tercile, .)
+  models <- list(
+    bs_standard   = fit_bs_standard(df_train),
+    bs_best_patch = fit_bs_best_patch(df_train),
+    glmm          = fit_glmm(df_train),
+    jdecay_scalar = fit_jdecay_scalar(df_train),
+    jdecay_cont   = fit_jdecay_continuous(df_train),
+    jdecay_tercile = fit_jdecay_tercile(
+      df_train,
+      rds_path = file.path(MODEL_DIR, "ca_jdecay_tercile.rds")
+    )
   )
 
-message("Models fitted and test predictions generated.")
+  df_test <- df_test %>%
+    mutate(
+      pred_market_mean   = 1,
+      pred_last_year     = lr_lag1 / mu_t,
+      pred_bs_standard   = predict_bs_standard(models$bs_standard,   .),
+      pred_bs_best_patch = predict_bs_best_patch(models$bs_best_patch, .),
+      pred_glmm          = predict(models$glmm, newdata = ., type = "response",
+                                    allow.new.levels = FALSE),
+      pred_jdecay_scalar = predict_jdecay_scalar(models$jdecay_scalar, .),
+      pred_jdecay_cont   = predict_jdecay_continuous(models$jdecay_cont, .),
+      pred_jdecay_tercile = predict_jdecay_tercile(models$jdecay_tercile, .)
+    )
+
+  message("Models fitted and test predictions generated.")
+
+}
