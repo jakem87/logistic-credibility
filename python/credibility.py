@@ -267,7 +267,8 @@ def fit_bs_standard(df_train: pd.DataFrame) -> dict:
         fg = g["lr_rel"].values
         f_ig = float(np.average(fg, weights=wg))
         n_g = len(g)
-        s2 = float(np.average((fg - f_ig) ** 2, weights=wg)) * n_g / max(n_g - 1, 1)
+        # Matches R: sum(expo * (lr_rel - wmean)^2) / (n - 1)
+        s2 = float(np.sum(wg * (fg - f_ig) ** 2)) / max(n_g - 1, 1)
         s2_parts.append((grcode, float(wg.sum()), s2))
 
     s2_df = pd.DataFrame(s2_parts, columns=["GRCODE", "w_i", "s2"])

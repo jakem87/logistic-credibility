@@ -6,9 +6,9 @@ Joint-Decay continuous λ) using Python. Results should match the R output
 within rounding (same optimisation problem, different implementation).
 
 Expected wMSE values (CA test set AY 2006-2007, absolute scale):
-  B-S standard             ≈ 0.01063  (reference)
-  Joint-Decay scalar λ     ≈ 0.00873  (~18% improvement)
-  Joint-Decay continuous λ ≈ 0.00847  (~20% improvement)
+  B-S standard             ≈ 0.01327  (reference)
+  Joint-Decay scalar λ     ≈ 0.00872  (~34% improvement)
+  Joint-Decay continuous λ ≈ 0.00838  (~37% improvement)
 
 Note: The Bayesian tercile-λ model (proposed model, Table 3 row 8) achieves
 ~29-32% improvement but requires brms/Stan. Use the R implementation for it:
