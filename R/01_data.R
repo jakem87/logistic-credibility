@@ -57,8 +57,13 @@ ult <- raw %>%
 
 valid_cos <- ult %>%
   group_by(GRCODE) %>%
-  summarise(n = n(), any_bad = any(lr < 0), .groups = "drop") %>%
-  filter(n == 10, !any_bad) %>%
+  summarise(
+    n        = n(),
+    any_neg  = any(lr < 0),
+    any_zero_mod = any(lr <= 0 & AccidentYear %in% c(TRAIN_YEARS, TEST_YEARS)),
+    .groups  = "drop"
+  ) %>%
+  filter(n == 10, !any_neg, !any_zero_mod) %>%
   pull(GRCODE)
 
 ult <- filter(ult, GRCODE %in% valid_cos)
