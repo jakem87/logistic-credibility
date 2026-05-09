@@ -1,0 +1,23 @@
+# Data files (download separately via data/README.md)
+data/*.csv
+
+# Cached Bayesian model fits (large RDS files)
+outputs/*/models/*.rds
+
+# R session artefacts
+.Rhistory
+.RData
+.Rproj.user/
+
+# Generated outputs (reproducible from scripts)
+outputs/*/
+!outputs/.gitkeep
+
+# Python artefacts
+__pycache__/
+*.pyc
+*.pyo
+
+# OS artefacts
+.DS_Store
+Thumbs.db
