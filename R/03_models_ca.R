@@ -136,6 +136,10 @@ fit_bs_best_patch <- function(df) {
   beta_c  <- coef(comp_fit)[2]
 
   # Step 3: joint 3D optimisation of all three decay parameters simultaneously.
+  # Note: lam_Md may hit 1.0 on CA data — Mid accounts have long memory and the
+  # sequential calibration (Z fixed, then lambda optimised) is internally
+  # inconsistent. The joint proposed model avoids this by estimating everything
+  # simultaneously with Bayesian priors that regularise away from the boundary.
   # Matches paper: one optim call across all terciles, minimising exposure-weighted
   # training MSE using expo_wt (= expo / mean_training_expo).
   obj_lam_t <- function(pars) {
@@ -275,6 +279,10 @@ fit_jdecay_continuous <- function(df) {
     shape <- exp(p[5])
     -sum(dgamma(data$lr_rel, shape = shape, rate = shape / mu, log = TRUE) * data$expo_wt)
   }
+  # Note: lam1 may hit its bound on CA data. The true lambda gradient is
+  # non-monotone in size (Mid > Small > Large in the tercile model), so a
+  # linear logit-scale model cannot fit all three terciles simultaneously.
+  # The resulting wMSE is still valid as a comparison point.
   par_init <- c(alpha = 0, beta = 0, az = -1, bz = 0.5, log_shape = 1,
                 lam0 = 0, lam1 = 0)
   lower    <- c(-2, -1, -6, -3, -2, -6, -5)
