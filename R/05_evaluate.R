@@ -118,8 +118,8 @@ bootstrap_wmse_improvement <- function(df_test, B = 2000, seed = 48) {
   companies <- unique(df_test$GRCODE)
   n_co      <- length(companies)
 
-  bs_col <- MODEL_LABELS["Bühlmann-Straub (standard)"]
-  model_cols <- setdiff(MODEL_LABELS, bs_col)
+  bs_col     <- MODEL_LABELS["Bühlmann-Straub (standard)"]
+  model_cols <- MODEL_LABELS[names(MODEL_LABELS) != "Bühlmann-Straub (standard)"]
 
   boot_mat <- matrix(NA_real_, nrow = B, ncol = length(model_cols),
                      dimnames = list(NULL, names(model_cols)))

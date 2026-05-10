@@ -277,8 +277,8 @@ fit_jdecay_continuous <- function(df) {
   }
   par_init <- c(alpha = 0, beta = 0, az = -1, bz = 0.5, log_shape = 1,
                 lam0 = 0, lam1 = 0)
-  lower    <- c(-2, -1, -6, -3, -2, -6, -3)
-  upper    <- c( 2,  1,  3,  5,  5,  6,  3)
+  lower    <- c(-2, -1, -6, -3, -2, -6, -5)
+  upper    <- c( 2,  1,  3,  5,  5,  6,  5)
   fit <- multi_optim(nll, par_init, lower, upper, data = df)
   p   <- fit$par
   message(sprintf(
