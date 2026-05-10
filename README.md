@@ -54,7 +54,7 @@ source("run_nesting_demo.R")
 | Joint-Decay (continuous λ) | MLE | As above, λ varies continuously with account size |
 | **Joint-Decay (tercile λ)** | **Bayesian** | **Proposed model: size-specific λ + continuous size-slope complement** |
 
-The proposed model achieves 29–32% wMSE reduction over standard B-S on the held-out test set.
+The proposed model achieves ~40% wMSE reduction over standard B-S on the held-out test set (oracle complement: realised µ_t used). In a forecast setting (µ_t replaced by prior-year estimate) this reduces to 29–32% — see paper Section 5.2 and the Notes section below.
 
 ---
 

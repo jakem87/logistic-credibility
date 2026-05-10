@@ -105,11 +105,14 @@ plot_zcurves <- function(models, df_train, lob_label) {
   }
 
   K_bs <- models$bs_standard$K_hat
-  bs_z_mean <- mean(df_train$expo_used / (df_train$expo_used + K_bs))
+  leu_mean <- mean(log(df_train$expo_used))
+  leu_sd   <- sd(log(df_train$expo_used))
+  expo_used_raw <- exp(expo_grid * leu_sd + leu_mean)
+  bs_curve <- expo_used_raw / (expo_used_raw + K_bs)
 
   df_z <- tibble(
-    log_expo_used_sc = expo_grid,
-    `B-S (constant Z)`         = rep(bs_z_mean, length(expo_grid)),
+    log_expo_used_sc      = expo_grid,
+    `B-S`                 = bs_curve,
     `Joint-Decay (scalar λ)`   = logistic_z,
     `Joint-Decay (tercile λ)`  = tercile_z
   ) %>%
@@ -123,7 +126,7 @@ plot_zcurves <- function(models, df_train, lob_label) {
       title   = sprintf("Fitted credibility weight Z vs log exposure — %s", lob_label),
       x       = "Log exposure (standardised, training scale)",
       y       = "Credibility weight Z",
-      caption = "B-S assigns the same Z to all accounts with equal exposure_used (horizontal line is the pooled average)."
+      caption = "B-S: Z = w/(w+K), hyperbolic in exposure. Logistic: Z = expit(a + b·log_expo_used_sc)."
     )
 }
 
