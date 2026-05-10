@@ -220,4 +220,5 @@ df_train <- filter(pred_panel, AccidentYear %in% TRAIN_YEARS)
 df_test  <- filter(pred_panel, AccidentYear %in% TEST_YEARS)
 
 message(sprintf("Training obs: %d   Test obs: %d", nrow(df_train), nrow(df_test)))
-message(sprintf("Mean lr_rel in training: %.4f (should be ~1.0)", mean(df_train$lr_rel)))
+message(sprintf("Exposure-weighted mean lr_rel in training: %.4f (should be ~1.0)",
+                sum(df_train$expo * df_train$lr_rel) / sum(df_train$expo)))
