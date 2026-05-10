@@ -135,32 +135,47 @@ fit_bs_best_patch <- function(df) {
   alpha_c <- coef(comp_fit)[1]
   beta_c  <- coef(comp_fit)[2]
 
-  # Step 3: single scalar λ estimated by 1D search minimising training wMSE.
-  # Matches paper's "B-S best sequential patch": strat K + size comp + EWMA,
-  # scalar λ pooled across all terciles. This is the strongest sequential
-  # competitor — parameters are estimated sequentially (K, then comp, then λ),
-  # not jointly, and Z remains the B-S form rather than logistic.
-  obj_lam <- function(lam_raw) {
-    lam  <- plogis(lam_raw)
-    fbar <- ewma_fbar(df2, lam)
+  # Step 3: joint 3D optimisation of tercile-specific decay parameters.
+  # Matches paper's "B-S best sequential patch": strat K + size comp + EWMA
+  # with tercile λ. Parameters are estimated sequentially (K first, then
+  # complement, then λ), not jointly — Z remains B-S form, not logistic.
+  # Note: lam_Md may hit 1.0 on CA data — this sequential inconsistency
+  # (K calibrated at lam=1, λ then re-optimised) is exactly what the
+  # joint proposed model fixes.
+  obj_lam_t <- function(pars) {
+    lam_sm_p <- plogis(pars[1]); lam_md_p <- plogis(pars[2]); lam_lg_p <- plogis(pars[3])
+    lam_i <- ifelse(df2$size_tercile == "Small", lam_sm_p,
+              ifelse(df2$size_tercile == "Mid",  lam_md_p, lam_lg_p))
+    num <- df2$lr_lag1_rel*df2$expo_lag1 + df2$lr_lag2_rel*df2$expo_lag2*lam_i +
+           df2$lr_lag3_rel*df2$expo_lag3*lam_i^2 + df2$lr_lag4_rel*df2$expo_lag4*lam_i^3 +
+           df2$lr_lag5_rel*df2$expo_lag5*lam_i^4 + df2$lr_lag6_rel*df2$expo_lag6*lam_i^5 +
+           df2$lr_lag7_rel*df2$expo_lag7*lam_i^6
+    den <- df2$expo_lag1 + df2$expo_lag2*lam_i + df2$expo_lag3*lam_i^2 +
+           df2$expo_lag4*lam_i^3 + df2$expo_lag5*lam_i^4 +
+           df2$expo_lag6*lam_i^5 + df2$expo_lag7*lam_i^6
+    fbar <- num / pmax(den, 1e-8)
     comp <- exp(alpha_c + beta_c * df2$log_expo_sc)
     pred <- (1 - df2$Z_bs) * comp + df2$Z_bs * fbar
     sum(df2$expo_wt * (df2$lr_rel - pred)^2)
   }
 
-  opt <- optimize(obj_lam, interval = c(-6, 6))
-  lam <- plogis(opt$minimum)
+  opt    <- optim(c(0, 0, 0), obj_lam_t, method = "L-BFGS-B",
+                  control = list(maxit = 2000))
+  lam_sm <- plogis(opt$par[1])
+  lam_md <- plogis(opt$par[2])
+  lam_lg <- plogis(opt$par[3])
 
   message(sprintf(
-    "  B-S best patch: K_Sm=%.1f K_Md=%.1f K_Lg=%.1f  lam=%.3f",
+    "  B-S best patch: K_Sm=%.1f K_Md=%.1f K_Lg=%.1f  lam_Sm=%.3f lam_Md=%.3f lam_Lg=%.3f",
     bs_strat$K_hat[bs_strat$size_tercile == "Small"],
     bs_strat$K_hat[bs_strat$size_tercile == "Mid"],
     bs_strat$K_hat[bs_strat$size_tercile == "Large"],
-    lam
+    lam_sm, lam_md, lam_lg
   ))
 
   list(type = "bs_best_patch", bs_strat = bs_strat,
-       alpha_c = alpha_c, beta_c = beta_c, lam = lam,
+       alpha_c = alpha_c, beta_c = beta_c,
+       lam_sm = lam_sm, lam_md = lam_md, lam_lg = lam_lg,
        company_stats = strat_stats %>% rename(w_i_strat = w_i, f_i_strat = f_i))
 }
 
@@ -170,9 +185,17 @@ predict_bs_best_patch <- function(fit, df_new) {
     left_join(fit$bs_strat %>% select(size_tercile, K_hat), by = "size_tercile") %>%
     mutate(Z_bs = w_i_strat / (w_i_strat + K_hat))
 
-  fbar <- ewma_fbar(df_work, fit$lam)
-  comp <- exp(fit$alpha_c + fit$beta_c * df_work$log_expo_sc)
-  (1 - df_work$Z_bs) * comp + df_work$Z_bs * fbar
+  pred_rel <- numeric(nrow(df_work))
+  for (trc in c("Small", "Mid", "Large")) {
+    idx <- which(df_work$size_tercile == trc)
+    if (length(idx) == 0) next
+    df_t  <- df_work[idx, ]
+    lam_t <- switch(trc, Small = fit$lam_sm, Mid = fit$lam_md, Large = fit$lam_lg)
+    fbar  <- ewma_fbar(df_t, lam_t)
+    comp  <- exp(fit$alpha_c + fit$beta_c * df_t$log_expo_sc)
+    pred_rel[idx] <- (1 - df_t$Z_bs) * comp + df_t$Z_bs * fbar
+  }
+  pred_rel
 }
 
 # -----------------------------------------------------------------------------
