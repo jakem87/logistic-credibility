@@ -147,7 +147,8 @@ def main(make_plot: bool = False) -> None:
     # 6. Optional Z-curve plot
     if make_plot:
         fig, ax = plt.subplots(figsize=(7, 4))
-        plot_zcurves(fit_sc, fit_bs, df_train, lob_label="Commercial Auto", ax=ax)
+        plot_zcurves(fit_sc, fit_bs, df_train, lob_label="Commercial Auto",
+                     fit_tercile_map=fit_trc_map, ax=ax)
         fig.tight_layout()
         plot_path = os.path.join(OUTPUT_DIR, "zcurves_python.png")
         fig.savefig(plot_path, dpi=150)

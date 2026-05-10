@@ -613,8 +613,12 @@ def eval_all_models(df_test: pd.DataFrame, predictions: dict) -> pd.DataFrame:
 # ---------------------------------------------------------------------------
 
 def plot_zcurves(fit_scalar: dict, fit_bs: dict, df_train: pd.DataFrame,
-                 lob_label: str = "", ax=None):
-    """Plot logistic Z vs log exposure (standardised scale)."""
+                 lob_label: str = "", fit_tercile_map: dict = None, ax=None):
+    """Plot logistic Z vs log exposure (standardised scale).
+
+    Shows B-S hyperbolic curve Z = w/(w+K), Joint-Decay scalar λ logistic,
+    and optionally the MAP tercile λ logistic (same Z curve, different λ).
+    """
     if ax is None:
         _, ax = plt.subplots(figsize=(7, 4))
 
@@ -624,15 +628,24 @@ def plot_zcurves(fit_scalar: dict, fit_bs: dict, df_train: pd.DataFrame,
         200,
     )
 
-    # B-S: constant pooled Z
-    K_bs = fit_bs["K_hat"]
-    bs_z = float((df_train["expo_used"] / (df_train["expo_used"] + K_bs)).mean())
-    ax.axhline(bs_z, linestyle="--", color="tab:blue", label="B-S (pooled Z)")
+    # B-S: hyperbolic curve Z = expo_used / (expo_used + K)
+    K_bs    = fit_bs["K_hat"]
+    leu_mean = float(np.mean(np.log(df_train["expo_used"])))
+    leu_sd   = float(np.std(np.log(df_train["expo_used"]), ddof=1))
+    expo_used_raw = np.exp(grid * leu_sd + leu_mean)
+    bs_z = expo_used_raw / (expo_used_raw + K_bs)
+    ax.plot(grid, bs_z, linestyle="--", color="tab:blue", label="B-S")
 
     # Joint-Decay scalar λ
     p = fit_scalar["par"]
     z_scalar = expit(p[2] + p[3] * grid)
     ax.plot(grid, z_scalar, color="tab:orange", label="Joint-Decay (scalar λ)")
+
+    # Joint-Decay tercile λ MAP (optional — same Z logistic form)
+    if fit_tercile_map is not None:
+        p_map = fit_tercile_map["par"]
+        z_map = expit(p_map[2] + p_map[3] * grid)
+        ax.plot(grid, z_map, color="tab:green", label="Joint-Decay (tercile λ, MAP)")
 
     ax.set_ylim(0, 1)
     ax.set_xlabel("Log exposure used (standardised)")
