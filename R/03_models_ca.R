@@ -401,6 +401,105 @@ predict_jdecay_tercile <- function(fit, df_new) {
 }
 
 # -----------------------------------------------------------------------------
+# Joint-Decay (scalar lambda, MAP) — paper Appendix, Listing 4
+#
+# Adds weakly-informative log-prior penalties to the MLE objective.
+# Priors: Normal(0, 1) on all logit-scale parameters (alpha, beta, az, bz,
+# lam_raw); Normal(2, 1) on log_shape.
+# Useful when lambda is weakly identified (small portfolios). MAP estimates
+# lie close to MLE when data are informative but are pulled toward moderate
+# values (less extreme lambda, more conservative Z) when data are sparse.
+# -----------------------------------------------------------------------------
+
+fit_jdecay_scalar_map <- function(df) {
+  nlp <- function(p, data) {
+    nll_val <- {
+      lam   <- plogis(p[6])
+      fbar  <- ewma_fbar(data, lam)
+      base  <- exp(p[1] + p[2] * data$log_expo_sc)
+      Z     <- plogis(p[3] + p[4] * data$log_expo_used_sc)
+      mu    <- pmax((1 - Z) * base + Z * fbar, 1e-8)
+      shape <- exp(p[5])
+      -sum(dgamma(data$lr_rel, shape = shape, rate = shape / mu, log = TRUE) * data$expo_wt)
+    }
+    # Weakly-informative priors: Normal(0,1) on logit-scale params; Normal(2,1) on log_shape
+    log_prior <- sum(dnorm(p[-5], mean = 0, sd = 1, log = TRUE)) +
+                 dnorm(p[5],  mean = 2, sd = 1, log = TRUE)
+    nll_val - log_prior
+  }
+  par_init <- c(alpha = 0, beta = 0, az = -1, bz = 0.5, log_shape = 2, lam_raw = 0)
+  lower    <- c(-2, -1, -6, -3, -2, -6)
+  upper    <- c( 2,  1,  3,  5,  5,  6)
+  fit <- multi_optim(nlp, par_init, lower, upper, data = df)
+  p   <- fit$par
+  message(sprintf(
+    "  Joint-Decay scalar (MAP): alpha=%.3f  beta=%.3f  az=%.2f  bz=%.2f  lam=%.3f",
+    p[1], p[2], p[3], p[4], plogis(p[6])
+  ))
+  list(type = "jdecay_scalar_map", par = p)
+}
+
+# predict_jdecay_scalar_map is identical to the MLE version
+predict_jdecay_scalar_map <- predict_jdecay_scalar
+
+# -----------------------------------------------------------------------------
+# Joint-Decay (tercile lambda, MAP)
+#
+# MAP version of the MLE tercile model. Priors pull each lambda away from the
+# boundary — particularly helpful when lambda_Mid hits lam ~ 1 (all weight on
+# the most recent year) as seen in the MLE fit. Normal(0, 1.5) on each
+# lam_raw matches the brms prior used in the Bayesian (proposed) model.
+# -----------------------------------------------------------------------------
+
+fit_jdecay_tercile_map <- function(df) {
+  nlp <- function(p, data) {
+    nll_val <- {
+      lam_sm <- plogis(p[6]); lam_md <- plogis(p[7]); lam_lg <- plogis(p[8])
+      lam_i  <- ifelse(data$size_tercile == "Small", lam_sm,
+                 ifelse(data$size_tercile == "Mid",  lam_md, lam_lg))
+      fbar   <- ewma_fbar_vec(data, lam_i)
+      base   <- exp(p[1] + p[2] * data$log_expo_sc)
+      Z      <- plogis(p[3] + p[4] * data$log_expo_used_sc)
+      mu     <- pmax((1 - Z) * base + Z * fbar, 1e-8)
+      shape  <- exp(p[5])
+      -sum(dgamma(data$lr_rel, shape = shape, rate = shape / mu, log = TRUE) * data$expo_wt)
+    }
+    # Normal(0,1) on alpha, beta, az, bz; Normal(2,1) on log_shape;
+    # Normal(0,1.5) on lam_raw_Sm/Md/Lg — matches brms priors in proposed model
+    log_prior <- sum(dnorm(p[c(1,2,3,4)], mean = 0, sd = 1,   log = TRUE)) +
+                 dnorm(p[5],              mean = 2, sd = 1,   log = TRUE) +
+                 sum(dnorm(p[c(6,7,8)],  mean = 0, sd = 1.5, log = TRUE))
+    nll_val - log_prior
+  }
+  par_init <- c(alpha = 0, beta = 0, az = -1, bz = 0.5, log_shape = 2,
+                lam_sm = 0, lam_md = 0, lam_lg = 0)
+  lower    <- c(-2, -1, -6, -3, -2, -6, -6, -6)
+  upper    <- c( 2,  1,  3,  5,  5,  6,  6,  6)
+  fit <- multi_optim(nlp, par_init, lower, upper, data = df)
+  p   <- fit$par
+  message(sprintf(
+    "  Joint-Decay tercile (MAP): az=%.2f  bz=%.2f  lam_Sm=%.3f  lam_Md=%.3f  lam_Lg=%.3f",
+    p[3], p[4], plogis(p[6]), plogis(p[7]), plogis(p[8])
+  ))
+  list(type = "jdecay_tercile_map", par = p)
+}
+
+predict_jdecay_tercile_map <- function(fit, df_new) {
+  p      <- fit$par
+  az     <- p[3]; bz <- p[4]; alpha <- p[1]; beta <- p[2]
+  lam_sm <- plogis(p[6]); lam_md <- plogis(p[7]); lam_lg <- plogis(p[8])
+  Z    <- plogis(az + bz * df_new$log_expo_used_sc)
+  comp <- exp(alpha + beta * df_new$log_expo_sc)
+  fbar <- numeric(nrow(df_new))
+  for (trc in c("Small", "Mid", "Large")) {
+    lam_t <- switch(trc, Small = lam_sm, Mid = lam_md, Large = lam_lg)
+    idx   <- which(df_new$size_tercile == trc)
+    if (length(idx) > 0) fbar[idx] <- ewma_fbar(df_new[idx, ], lam_t)
+  }
+  (1 - Z) * comp + Z * fbar
+}
+
+# -----------------------------------------------------------------------------
 # Fit all models on training data  (CA only — OL fitting is in 04_models_ol.R)
 # -----------------------------------------------------------------------------
 
@@ -409,12 +508,14 @@ if (exists("LINE_OF_BUSINESS") && LINE_OF_BUSINESS == "ca") {
   message("\n--- Fitting models (Commercial Auto) ---")
 
   models <- list(
-    bs_standard   = fit_bs_standard(df_train),
-    bs_best_patch = fit_bs_best_patch(df_train),
-    glmm          = fit_glmm(df_train),
-    jdecay_scalar = fit_jdecay_scalar(df_train),
-    jdecay_cont   = fit_jdecay_continuous(df_train),
-    jdecay_tercile = fit_jdecay_tercile(
+    bs_standard        = fit_bs_standard(df_train),
+    bs_best_patch      = fit_bs_best_patch(df_train),
+    glmm               = fit_glmm(df_train),
+    jdecay_scalar      = fit_jdecay_scalar(df_train),
+    jdecay_scalar_map  = fit_jdecay_scalar_map(df_train),
+    jdecay_cont        = fit_jdecay_continuous(df_train),
+    jdecay_tercile_map = fit_jdecay_tercile_map(df_train),
+    jdecay_tercile     = fit_jdecay_tercile(
       df_train,
       rds_path = file.path(MODEL_DIR, "ca_jdecay_tercile.rds")
     )
@@ -422,15 +523,17 @@ if (exists("LINE_OF_BUSINESS") && LINE_OF_BUSINESS == "ca") {
 
   df_test <- df_test %>%
     mutate(
-      pred_market_mean   = 1,
-      pred_last_year     = lr_lag1 / mu_t,
-      pred_bs_standard   = predict_bs_standard(models$bs_standard,   .),
-      pred_bs_best_patch = predict_bs_best_patch(models$bs_best_patch, .),
-      pred_glmm          = predict(models$glmm, newdata = ., type = "response",
-                                    allow.new.levels = FALSE),
-      pred_jdecay_scalar = predict_jdecay_scalar(models$jdecay_scalar, .),
-      pred_jdecay_cont   = predict_jdecay_continuous(models$jdecay_cont, .),
-      pred_jdecay_tercile = predict_jdecay_tercile(models$jdecay_tercile, .)
+      pred_market_mean        = 1,
+      pred_last_year          = lr_lag1 / mu_t,
+      pred_bs_standard        = predict_bs_standard(models$bs_standard,   .),
+      pred_bs_best_patch      = predict_bs_best_patch(models$bs_best_patch, .),
+      pred_glmm               = predict(models$glmm, newdata = ., type = "response",
+                                         allow.new.levels = FALSE),
+      pred_jdecay_scalar      = predict_jdecay_scalar(models$jdecay_scalar, .),
+      pred_jdecay_scalar_map  = predict_jdecay_scalar_map(models$jdecay_scalar_map, .),
+      pred_jdecay_cont        = predict_jdecay_continuous(models$jdecay_cont, .),
+      pred_jdecay_tercile_map = predict_jdecay_tercile_map(models$jdecay_tercile_map, .),
+      pred_jdecay_tercile     = predict_jdecay_tercile(models$jdecay_tercile, .)
     )
 
   message("Models fitted and test predictions generated.")

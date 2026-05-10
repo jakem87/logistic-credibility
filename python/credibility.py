@@ -444,6 +444,100 @@ def predict_jdecay_tercile(fit: dict, df: pd.DataFrame) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
+# MAP estimation — paper Appendix, Listing 4
+#
+# Adds weakly-informative log-prior penalties to the MLE objective.
+# Useful when lambda is weakly identified (small portfolios or few companies
+# per tercile). The tercile MAP is particularly helpful when lam_Md hits the
+# boundary (~1.0) in the MLE fit.
+#
+# Priors:
+#   Normal(0, 1)   on alpha, beta, az, bz (logit-scale parameters)
+#   Normal(2, 1)   on log_shape
+#   Normal(0, 1.5) on each lam_raw (matches brms prior in proposed model)
+# ---------------------------------------------------------------------------
+
+from scipy.stats import norm as _norm
+
+
+def _log_prior_scalar(params: np.ndarray) -> float:
+    """Log-prior for scalar-lambda MAP model (6 parameters)."""
+    alpha, beta, az, bz, log_shape, lam_raw = params
+    return (
+        _norm.logpdf(alpha,    0, 1.0) +
+        _norm.logpdf(beta,     0, 1.0) +
+        _norm.logpdf(az,       0, 1.0) +
+        _norm.logpdf(bz,       0, 1.0) +
+        _norm.logpdf(log_shape, 2, 1.0) +
+        _norm.logpdf(lam_raw,  0, 1.5)
+    )
+
+
+def _log_prior_tercile(params: np.ndarray) -> float:
+    """Log-prior for tercile-lambda MAP model (8 parameters)."""
+    alpha, beta, az, bz, log_shape = params[:5]
+    lam_sm_r, lam_md_r, lam_lg_r  = params[5], params[6], params[7]
+    return (
+        _norm.logpdf(alpha,    0, 1.0) +
+        _norm.logpdf(beta,     0, 1.0) +
+        _norm.logpdf(az,       0, 1.0) +
+        _norm.logpdf(bz,       0, 1.0) +
+        _norm.logpdf(log_shape, 2, 1.0) +
+        _norm.logpdf(lam_sm_r, 0, 1.5) +
+        _norm.logpdf(lam_md_r, 0, 1.5) +
+        _norm.logpdf(lam_lg_r, 0, 1.5)
+    )
+
+
+def fit_jdecay_scalar_map(df_train: pd.DataFrame) -> dict:
+    """Fit Joint-Decay scalar-lambda model via MAP (MLE + weakly-informative priors)."""
+    def nlp(params):
+        return _nll_gamma(params, df_train, "scalar") - _log_prior_scalar(params)
+
+    x0     = np.array([0.0, 0.0, -1.0, 0.5, 2.0, 0.0])
+    bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6)]
+    res = _multi_optim(nlp, x0, bounds)
+    p   = res.x
+    print(f"  Joint-Decay scalar (MAP): az={p[2]:.2f}  bz={p[3]:.2f}  lam={float(expit(p[5])):.3f}")
+    return {"type": "jdecay_scalar_map", "par": p}
+
+
+# Predictions are identical structure to MLE scalar model
+def predict_jdecay_scalar_map(fit: dict, df: pd.DataFrame) -> np.ndarray:
+    """Predict from MAP scalar-lambda model."""
+    p    = fit["par"]
+    lam  = float(expit(p[5]))
+    fbar = ewma_fbar(df, lam)
+    base = np.exp(p[0] + p[1] * df["log_expo_sc"].values)
+    Z    = expit(p[2] + p[3] * df["log_expo_used_sc"].values)
+    return (1 - Z) * base + Z * fbar
+
+
+def fit_jdecay_tercile_map(df_train: pd.DataFrame) -> dict:
+    """Fit Joint-Decay tercile-lambda model via MAP (MLE + weakly-informative priors).
+
+    Regularises lambda estimates away from the boundary — particularly useful
+    when lam_Md hits ~1.0 in the MLE fit.
+    """
+    def nlp(params):
+        return _nll_gamma(params, df_train, "tercile") - _log_prior_tercile(params)
+
+    x0     = np.array([0.0, 0.0, -1.0, 0.5, 2.0, 0.0, 0.0, 0.0])
+    bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6), (-6, 6), (-6, 6)]
+    res = _multi_optim(nlp, x0, bounds)
+    p   = res.x
+    print(f"  Joint-Decay tercile (MAP): az={p[2]:.2f}  bz={p[3]:.2f}  "
+          f"lam_Sm={float(expit(p[5])):.3f}  lam_Md={float(expit(p[6])):.3f}  "
+          f"lam_Lg={float(expit(p[7])):.3f}")
+    return {"type": "jdecay_tercile_map", "par": p}
+
+
+def predict_jdecay_tercile_map(fit: dict, df: pd.DataFrame) -> np.ndarray:
+    """Predict from MAP tercile-lambda model."""
+    return predict_jdecay_tercile(fit, df)
+
+
+# ---------------------------------------------------------------------------
 # Evaluation metrics
 # ---------------------------------------------------------------------------
 

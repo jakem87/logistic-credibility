@@ -21,7 +21,9 @@ MODEL_LABELS <- c(
   "B-S (best sequential patch)"                  = "pred_bs_best_patch",
   "GLMM (random intercept + size)"               = "pred_glmm",
   "Joint-Decay (scalar λ)"                  = "pred_jdecay_scalar",
+  "Joint-Decay (scalar λ, MAP)"             = "pred_jdecay_scalar_map",
   "Joint-Decay (continuous λ)"              = "pred_jdecay_cont",
+  "Joint-Decay (tercile λ, MAP)"            = "pred_jdecay_tercile_map",
   "Joint-Decay (tercile λ) [proposed]"      = "pred_jdecay_tercile"
 )
 
