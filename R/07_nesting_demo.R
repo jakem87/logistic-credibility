@@ -12,7 +12,7 @@
 # In finite samples b_hat < b_BS because of within-account estimation noise
 # (shrinkage is data-optimal when the true rate is unobserved over the window).
 #
-# Runtime: ~10 seconds (ML only, no Bayesian sampling required)
+# Runtime: ~20 seconds (ML only, no Bayesian sampling required)
 # =============================================================================
 
 library(dplyr)
@@ -24,7 +24,7 @@ set.seed(46)
 # DGP parameters (S1: classical B-S)
 # -----------------------------------------------------------------------------
 
-N_INS    <- 10000    # number of accounts; increase to ~100000 to see b_ML converge to b_BS
+N_INS    <- 20000    # number of accounts; increase to ~100000 to see b_ML converge to b_BS
 N_YEARS  <- 8        # total years (including test)
 MU_BASE  <- 0.20     # base frequency
 SIGMA_B  <- 0.25     # between-account SD (homogeneous K)

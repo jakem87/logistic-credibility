@@ -3,7 +3,7 @@
 #
 # Usage:  source("run_nesting_demo.R")   or   Rscript run_nesting_demo.R
 #
-# Runtime: ~10 seconds
+# Runtime: ~20 seconds
 # =============================================================================
 
 library(scales)    # for percent labels in plots

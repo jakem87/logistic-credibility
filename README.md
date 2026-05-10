@@ -17,7 +17,7 @@ source("run_ca.R")
 # Other Liability — cross-LoB validation
 source("run_ol.R")
 
-# Nesting demonstration (no Stan required, ~10 seconds)
+# Nesting demonstration (no Stan required, ~20 seconds)
 source("run_nesting_demo.R")
 ```
 
@@ -29,7 +29,7 @@ source("run_nesting_demo.R")
 |------|---------|
 | `run_ca.R` | One-click CA analysis → results + plots in `outputs/ca/` |
 | `run_ol.R` | One-click OL analysis → results + plots in `outputs/ol/` |
-| `run_nesting_demo.R` | Self-contained nesting illustration (no Bayesian models, ~10 seconds) |
+| `run_nesting_demo.R` | Self-contained nesting illustration (no Bayesian models, ~20 seconds) |
 | `R/01_data.R` | Data download, filtering, panel construction |
 | `R/02_features.R` | EWMA helpers and multi-start optimiser |
 | `R/03_models_ca.R` | All 8 models fitted on Commercial Auto |
