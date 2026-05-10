@@ -24,7 +24,7 @@ set.seed(46)
 # DGP parameters (S1: classical B-S)
 # -----------------------------------------------------------------------------
 
-N_INS    <- 200      # number of accounts; increase to ~100000 to see b_ML converge to b_BS
+N_INS    <- 5000     # number of accounts; increase to ~100000 to see b_ML converge to b_BS
 N_YEARS  <- 8        # total years (including test)
 MU_BASE  <- 0.20     # base frequency
 SIGMA_B  <- 0.25     # between-account SD (homogeneous K)
