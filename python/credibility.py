@@ -209,7 +209,8 @@ def build_panel(df: pd.DataFrame, w_max: int = W_MAX) -> tuple:
     df_test  = panel[panel["AccidentYear"].isin(TEST_YEARS)].copy()
 
     print(f"Training obs: {len(df_train)}   Test obs: {len(df_test)}")
-    print(f"Mean lr_rel in training: {df_train['lr_rel'].mean():.4f} (should be ~1.0)")
+    wmean_lr_rel = float(np.average(df_train["lr_rel"], weights=df_train["expo"]))
+    print(f"Exposure-weighted mean lr_rel in training: {wmean_lr_rel:.4f} (should be ~1.0)")
     return df_train, df_test, tr_stats
 
 
@@ -381,7 +382,7 @@ def predict_jdecay_scalar(fit: dict, df: pd.DataFrame) -> np.ndarray:
 def fit_jdecay_continuous(df_train: pd.DataFrame) -> dict:
     """Fit Joint-Decay model where λ varies continuously with account size (ML)."""
     x0     = np.array([0.0, 0.0, -1.0, 0.5, 1.0, 0.0, 0.0])
-    bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6), (-3, 3)]
+    bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6), (-5, 5)]
 
     res = _multi_optim(lambda p: _nll_gamma(p, df_train, "continuous"), x0, bounds)
     p   = res.x
