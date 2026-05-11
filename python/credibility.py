@@ -240,6 +240,45 @@ def ewma_fbar_vec(df: pd.DataFrame, lam_vec: np.ndarray) -> np.ndarray:
     return num / np.maximum(den, 1e-8)
 
 
+def ewma_log_fbar(df: pd.DataFrame, lam: float) -> np.ndarray:
+    """Log-space EWMA (geometric blend): weighted mean of log(lr_rel)."""
+    log_lr1 = np.log(np.maximum(df["lr_lag1_rel"].values, 1e-8))
+    num = log_lr1 * df["expo_lag1"].values
+    den = df["expo_lag1"].values.copy().astype(float)
+    for k in range(2, W_MAX + 1):
+        w = lam ** (k - 1)
+        log_lrk = np.log(np.maximum(df[f"lr_lag{k}_rel"].values, 1e-8))
+        num = num + log_lrk * df[f"expo_lag{k}"].values * w
+        den = den + df[f"expo_lag{k}"].values * w
+    return num / np.maximum(den, 1e-8)
+
+
+def ewma_tworate_fbar(df: pd.DataFrame, lam1: float, lam2: float) -> np.ndarray:
+    """Two-rate arithmetic EWMA: weights 1, lam1, lam1*lam2, lam1*lam2^2, ..."""
+    weights = [1.0] + [lam1 * lam2 ** (k - 1) for k in range(1, W_MAX)]
+    num = df["lr_lag1_rel"].values * df["expo_lag1"].values
+    den = df["expo_lag1"].values.copy().astype(float)
+    for k in range(2, W_MAX + 1):
+        w = weights[k - 1]
+        num = num + df[f"lr_lag{k}_rel"].values * df[f"expo_lag{k}"].values * w
+        den = den + df[f"expo_lag{k}"].values * w
+    return num / np.maximum(den, 1e-8)
+
+
+def ewma_log_tworate_fbar(df: pd.DataFrame, lam1: float, lam2: float) -> np.ndarray:
+    """Two-rate log-space EWMA."""
+    weights = [1.0] + [lam1 * lam2 ** (k - 1) for k in range(1, W_MAX)]
+    log_lr1 = np.log(np.maximum(df["lr_lag1_rel"].values, 1e-8))
+    num = log_lr1 * df["expo_lag1"].values
+    den = df["expo_lag1"].values.copy().astype(float)
+    for k in range(2, W_MAX + 1):
+        w = weights[k - 1]
+        log_lrk = np.log(np.maximum(df[f"lr_lag{k}_rel"].values, 1e-8))
+        num = num + log_lrk * df[f"expo_lag{k}"].values * w
+        den = den + df[f"expo_lag{k}"].values * w
+    return num / np.maximum(den, 1e-8)
+
+
 # ---------------------------------------------------------------------------
 # Bühlmann-Straub standard (MoM)
 # ---------------------------------------------------------------------------
@@ -304,16 +343,32 @@ def predict_bs_standard(fit: dict, df: pd.DataFrame) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 def _nll_gamma(params: np.ndarray, df: pd.DataFrame, mode: str = "scalar") -> float:
-    """Negative log-likelihood for Joint-Decay model under Gamma(identity link)."""
+    """Negative log-likelihood for Joint-Decay model under Gamma."""
     alpha, beta, az, bz, log_shape = params[:5]
+    wt    = df["expo_wt"].values
+    Z     = expit(az + bz * df["log_expo_used_sc"].values)
 
-    if mode == "scalar":
-        lam  = float(expit(params[5]))
-        fbar = ewma_fbar(df, lam)
+    if mode == "geometric":
+        lam      = float(expit(params[5]))
+        log_fbar = ewma_log_fbar(df, lam)
+        log_comp = alpha + beta * df["log_expo_sc"].values
+        mu       = np.maximum(np.exp((1 - Z) * log_comp + Z * log_fbar), 1e-8)
+    elif mode == "tworate":
+        lam1, lam2 = float(expit(params[5])), float(expit(params[6]))
+        fbar = ewma_tworate_fbar(df, lam1, lam2)
+        base = np.exp(alpha + beta * df["log_expo_sc"].values)
+        mu   = np.maximum((1 - Z) * base + Z * fbar, 1e-8)
+    elif mode == "geom_tworate":
+        lam1, lam2 = float(expit(params[5])), float(expit(params[6]))
+        log_fbar = ewma_log_tworate_fbar(df, lam1, lam2)
+        log_comp = alpha + beta * df["log_expo_sc"].values
+        mu       = np.maximum(np.exp((1 - Z) * log_comp + Z * log_fbar), 1e-8)
     elif mode == "continuous":
         lam_vec = expit(params[5] + params[6] * df["log_mean_expo_sc"].values)
         fbar    = ewma_fbar_vec(df, lam_vec)
-    else:  # tercile
+        base    = np.exp(alpha + beta * df["log_expo_sc"].values)
+        mu      = np.maximum((1 - Z) * base + Z * fbar, 1e-8)
+    elif mode == "tercile":
         lam_sm, lam_md, lam_lg = expit(params[5]), expit(params[6]), expit(params[7])
         df_reset = df.reset_index(drop=True)
         fbar = np.empty(len(df_reset))
@@ -321,14 +376,16 @@ def _nll_gamma(params: np.ndarray, df: pd.DataFrame, mode: str = "scalar") -> fl
             idx = df_reset.index[df_reset["size_tercile"] == trc].tolist()
             if idx:
                 fbar[idx] = ewma_fbar(df_reset.loc[idx], lam_t)
+        base = np.exp(alpha + beta * df["log_expo_sc"].values)
+        mu   = np.maximum((1 - Z) * base + Z * fbar, 1e-8)
+    else:  # scalar
+        lam  = float(expit(params[5]))
+        fbar = ewma_fbar(df, lam)
+        base = np.exp(alpha + beta * df["log_expo_sc"].values)
+        mu   = np.maximum((1 - Z) * base + Z * fbar, 1e-8)
 
-    base  = np.exp(alpha + beta * df["log_expo_sc"].values)
-    Z     = expit(az + bz * df["log_expo_used_sc"].values)
-    mu    = np.maximum((1 - Z) * base + Z * fbar, 1e-8)
     shape = np.exp(log_shape)
-    wt    = df["expo_wt"].values
-
-    ll = gamma_dist.logpdf(df["lr_rel"].values, a=shape, scale=mu / shape)
+    ll    = gamma_dist.logpdf(df["lr_rel"].values, a=shape, scale=mu / shape)
     return float(-np.sum(ll * wt))
 
 
@@ -503,15 +560,9 @@ def fit_jdecay_scalar_map(df_train: pd.DataFrame) -> dict:
     return {"type": "jdecay_scalar_map", "par": p}
 
 
-# Predictions are identical structure to MLE scalar model
 def predict_jdecay_scalar_map(fit: dict, df: pd.DataFrame) -> np.ndarray:
     """Predict from MAP scalar-lambda model."""
-    p    = fit["par"]
-    lam  = float(expit(p[5]))
-    fbar = ewma_fbar(df, lam)
-    base = np.exp(p[0] + p[1] * df["log_expo_sc"].values)
-    Z    = expit(p[2] + p[3] * df["log_expo_used_sc"].values)
-    return (1 - Z) * base + Z * fbar
+    return predict_jdecay_scalar(fit, df)
 
 
 def fit_jdecay_tercile_map(df_train: pd.DataFrame) -> dict:
@@ -536,6 +587,82 @@ def fit_jdecay_tercile_map(df_train: pd.DataFrame) -> dict:
 def predict_jdecay_tercile_map(fit: dict, df: pd.DataFrame) -> np.ndarray:
     """Predict from MAP tercile-lambda model."""
     return predict_jdecay_tercile(fit, df)
+
+
+# ---------------------------------------------------------------------------
+# Joint-Decay geometric blend (scalar λ)
+#
+# Blends in log-space: log(mu) = (1-Z)*log_comp + Z*log_fbar.
+# Better calibrated than arithmetic blend for right-skewed LR distributions
+# (e.g. Other Liability). Competitive with arithmetic in CA.
+# ---------------------------------------------------------------------------
+
+def fit_jdecay_geometric(df_train: pd.DataFrame) -> dict:
+    """Fit Joint-Decay model with geometric (log-space) blend, scalar lambda."""
+    x0     = np.array([0.0, 0.0, -1.0, 0.5, 1.0, 0.0])
+    bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6)]
+    res = _multi_optim(lambda p: _nll_gamma(p, df_train, "geometric"), x0, bounds)
+    p   = res.x
+    print(f"  Joint-Decay geometric: alpha={p[0]:.3f}  beta={p[1]:.3f}  "
+          f"az={p[2]:.2f}  bz={p[3]:.2f}  lam={float(expit(p[5])):.3f}")
+    return {"type": "jdecay_geometric", "par": p}
+
+
+def predict_jdecay_geometric(fit: dict, df: pd.DataFrame) -> np.ndarray:
+    """Predict from geometric-blend scalar-lambda model."""
+    p        = fit["par"]
+    lam      = float(expit(p[5]))
+    log_fbar = ewma_log_fbar(df, lam)
+    log_comp = p[0] + p[1] * df["log_expo_sc"].values
+    Z        = expit(p[2] + p[3] * df["log_expo_used_sc"].values)
+    return np.exp((1 - Z) * log_comp + Z * log_fbar)
+
+
+# ---------------------------------------------------------------------------
+# Joint-Decay two-rate λ (arithmetic and geometric)
+#
+# Two independent decay parameters: lam1 (lag-1→2), lam2 (all subsequent).
+# Best overall OL model: geometric two-rate wMSE=0.01562 vs GLMM 0.01637.
+# ---------------------------------------------------------------------------
+
+def fit_jdecay_tworate(df_train: pd.DataFrame) -> dict:
+    """Fit Joint-Decay two-rate lambda model (arithmetic blend)."""
+    x0     = np.array([0.0, 0.0, -1.0, 0.5, 1.0, 0.0, -1.0])
+    bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6), (-6, 6)]
+    res = _multi_optim(lambda p: _nll_gamma(p, df_train, "tworate"), x0, bounds)
+    p   = res.x
+    print(f"  Joint-Decay two-rate: az={p[2]:.2f}  bz={p[3]:.2f}  "
+          f"lam1={float(expit(p[5])):.3f}  lam2={float(expit(p[6])):.3f}")
+    return {"type": "jdecay_tworate", "par": p}
+
+
+def predict_jdecay_tworate(fit: dict, df: pd.DataFrame) -> np.ndarray:
+    """Predict from two-rate arithmetic lambda model."""
+    p    = fit["par"]
+    fbar = ewma_tworate_fbar(df, float(expit(p[5])), float(expit(p[6])))
+    base = np.exp(p[0] + p[1] * df["log_expo_sc"].values)
+    Z    = expit(p[2] + p[3] * df["log_expo_used_sc"].values)
+    return (1 - Z) * base + Z * fbar
+
+
+def fit_jdecay_geom_tworate(df_train: pd.DataFrame) -> dict:
+    """Fit Joint-Decay two-rate lambda model (geometric/log-space blend)."""
+    x0     = np.array([0.0, 0.0, -1.0, 0.5, 1.0, 0.0, -1.0])
+    bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6), (-6, 6)]
+    res = _multi_optim(lambda p: _nll_gamma(p, df_train, "geom_tworate"), x0, bounds)
+    p   = res.x
+    print(f"  Joint-Decay geom two-rate: az={p[2]:.2f}  bz={p[3]:.2f}  "
+          f"lam1={float(expit(p[5])):.3f}  lam2={float(expit(p[6])):.3f}")
+    return {"type": "jdecay_geom_tworate", "par": p}
+
+
+def predict_jdecay_geom_tworate(fit: dict, df: pd.DataFrame) -> np.ndarray:
+    """Predict from two-rate geometric lambda model."""
+    p        = fit["par"]
+    log_fbar = ewma_log_tworate_fbar(df, float(expit(p[5])), float(expit(p[6])))
+    log_comp = p[0] + p[1] * df["log_expo_sc"].values
+    Z        = expit(p[2] + p[3] * df["log_expo_used_sc"].values)
+    return np.exp((1 - Z) * log_comp + Z * log_fbar)
 
 
 # ---------------------------------------------------------------------------
@@ -576,6 +703,7 @@ def eval_model(pred_rel: np.ndarray, actual_rel: np.ndarray,
     return {
         "Model":    label,
         "wMSE":     round(wmse, 6),
+        "log_wMSE": round(float(np.log(wmse)), 4),
         "Gini_pct": round(gini_pct, 1),
         "Slope":    round(slope, 3),
     }

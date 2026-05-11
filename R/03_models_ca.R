@@ -1,17 +1,23 @@
 # =============================================================================
 # 03_models_ca.R  —  Model fitting: Commercial Auto
 #
-# Fits the 8 models from Table 3 of the paper. All models operate in relative
-# space (response = lr_rel = lr / mu_t). Predictions are converted back to
-# absolute scale at evaluation time via pred_abs = pred_rel * mu_t.
+# Fits all models. All models operate in relative space (response = lr_rel =
+# lr / mu_t). Predictions are converted back to absolute scale at evaluation
+# time via pred_abs = pred_rel * mu_t.
 #
 # Models:
-#   fit_bs_standard()          B-S standard (MoM K, full history)
-#   fit_bs_best_patch()        B-S stratified K + size comp + EWMA tercile lambda
-#   fit_glmm()                 GLMM (random intercept + size fixed effect)
-#   fit_jdecay_scalar()        Joint-Decay (scalar lambda, ML)
-#   fit_jdecay_continuous()    Joint-Decay (continuous lambda, ML)
-#   fit_jdecay_tercile()       Joint-Decay (tercile lambda, continuous comp, Bayesian)  <- proposed
+#   fit_bs_standard()           B-S standard (MoM K, full history)
+#   fit_bs_best_patch()         B-S stratified K + size comp + EWMA tercile lambda
+#   fit_glmm()                  GLMM (random intercept + size fixed effect)
+#   fit_glmm_stratified()       GLMM fitted separately per size tercile (negative result)
+#   fit_jdecay_scalar()         Joint-Decay (scalar lambda, arithmetic, ML)
+#   fit_jdecay_scalar_map()     Joint-Decay (scalar lambda, MAP)
+#   fit_jdecay_geometric()      Joint-Decay (scalar lambda, geometric/log-space blend, ML)
+#   fit_jdecay_continuous()     Joint-Decay (continuous lambda, ML)
+#   fit_jdecay_tworate()        Joint-Decay (two-rate lambda, arithmetic, ML)
+#   fit_jdecay_geom_tworate()   Joint-Decay (two-rate lambda, geometric blend, ML)
+#   fit_jdecay_tercile_map()    Joint-Decay (tercile lambda, MAP)
+#   fit_jdecay_tercile()        Joint-Decay (tercile lambda, continuous comp, Bayesian) <- proposed
 #
 # Requires: df_train, df_test from 01_data.R; helpers from 02_features.R.
 # =============================================================================
@@ -146,14 +152,7 @@ fit_bs_best_patch <- function(df) {
     lam_sm_p <- plogis(pars[1]); lam_md_p <- plogis(pars[2]); lam_lg_p <- plogis(pars[3])
     lam_i <- ifelse(df2$size_tercile == "Small", lam_sm_p,
               ifelse(df2$size_tercile == "Mid",  lam_md_p, lam_lg_p))
-    num <- df2$lr_lag1_rel*df2$expo_lag1 + df2$lr_lag2_rel*df2$expo_lag2*lam_i +
-           df2$lr_lag3_rel*df2$expo_lag3*lam_i^2 + df2$lr_lag4_rel*df2$expo_lag4*lam_i^3 +
-           df2$lr_lag5_rel*df2$expo_lag5*lam_i^4 + df2$lr_lag6_rel*df2$expo_lag6*lam_i^5 +
-           df2$lr_lag7_rel*df2$expo_lag7*lam_i^6
-    den <- df2$expo_lag1 + df2$expo_lag2*lam_i + df2$expo_lag3*lam_i^2 +
-           df2$expo_lag4*lam_i^3 + df2$expo_lag5*lam_i^4 +
-           df2$expo_lag6*lam_i^5 + df2$expo_lag7*lam_i^6
-    fbar <- num / pmax(den, 1e-8)
+    fbar <- ewma_fbar_vec(df2, lam_i)
     comp <- exp(alpha_c + beta_c * df2$log_expo_sc)
     pred <- (1 - df2$Z_bs) * comp + df2$Z_bs * fbar
     sum(df2$expo_wt * (df2$lr_rel - pred)^2)
@@ -221,6 +220,40 @@ fit_glmm <- function(df) {
     sqrt(as.numeric(VarCorr(fit)$cond$GRCODE[1]))
   ))
   fit
+}
+
+# -----------------------------------------------------------------------------
+# GLMM stratified by size tercile — documented negative result
+#
+# Fits a separate GLMM per tercile. sigma_u collapses in Small and Mid terciles
+# because cross-tercile sigma_u borrowing is removed. Overall wMSE is worse
+# than the pooled GLMM in both CA and OL — see paper cross-LoB section.
+# -----------------------------------------------------------------------------
+
+fit_glmm_stratified <- function(df) {
+  fits <- lapply(c("Small", "Mid", "Large"), function(trc) {
+    df_t <- df %>% filter(size_tercile == trc)
+    glmmTMB(
+      lr_rel ~ log_expo_sc + (1 | GRCODE),
+      weights = expo_wt,
+      family  = Gamma(link = "log"),
+      data    = df_t
+    )
+  })
+  names(fits) <- c("Small", "Mid", "Large")
+  message("  GLMM (stratified): fitted per size tercile")
+  list(type = "glmm_stratified", fits = fits)
+}
+
+predict_glmm_stratified <- function(fit, df_new) {
+  pred <- numeric(nrow(df_new))
+  for (trc in c("Small", "Mid", "Large")) {
+    idx <- which(df_new$size_tercile == trc)
+    if (length(idx) == 0) next
+    pred[idx] <- predict(fit$fits[[trc]], newdata = df_new[idx, ],
+                         type = "response", allow.new.levels = FALSE)
+  }
+  pred
 }
 
 # -----------------------------------------------------------------------------
@@ -451,6 +484,127 @@ fit_jdecay_scalar_map <- function(df) {
 predict_jdecay_scalar_map <- predict_jdecay_scalar
 
 # -----------------------------------------------------------------------------
+# Joint-Decay (geometric blend, scalar lambda)
+#
+# Blends in log-space: log(mu) = (1-Z)*log_comp + Z*log_fbar
+# where log_fbar is the exposure-weighted EWMA of log(lr_rel).
+# Equivalent to a geometric mean blend under the Gamma log-link.
+# The paper promotes this as the default for log-link GLMs; it outperforms
+# arithmetic blending in OL (right-skewed LR distribution) and is competitive
+# in CA (symmetric distribution).
+# -----------------------------------------------------------------------------
+
+fit_jdecay_geometric <- function(df) {
+  nll <- function(p, data) {
+    lam      <- plogis(p[6])
+    log_fbar <- ewma_log_fbar(data, lam)
+    log_comp <- p[1] + p[2] * data$log_expo_sc
+    Z        <- plogis(p[3] + p[4] * data$log_expo_used_sc)
+    mu       <- pmax(exp((1 - Z) * log_comp + Z * log_fbar), 1e-8)
+    shape    <- exp(p[5])
+    -sum(dgamma(data$lr_rel, shape = shape, rate = shape / mu, log = TRUE) * data$expo_wt)
+  }
+  par_init <- c(alpha = 0, beta = 0, az = -1, bz = 0.5, log_shape = 1, lam_raw = 0)
+  lower    <- c(-2, -1, -6, -3, -2, -6)
+  upper    <- c( 2,  1,  3,  5,  5,  6)
+  fit <- multi_optim(nll, par_init, lower, upper, data = df)
+  p   <- fit$par
+  message(sprintf(
+    "  Joint-Decay geometric: alpha=%.3f  beta=%.3f  az=%.2f  bz=%.2f  lam=%.3f",
+    p[1], p[2], p[3], p[4], plogis(p[6])
+  ))
+  list(type = "jdecay_geometric", par = p)
+}
+
+predict_jdecay_geometric <- function(fit, df_new) {
+  p        <- fit$par
+  lam      <- plogis(p[6])
+  log_fbar <- ewma_log_fbar(df_new, lam)
+  log_comp <- p[1] + p[2] * df_new$log_expo_sc
+  Z        <- plogis(p[3] + p[4] * df_new$log_expo_used_sc)
+  exp((1 - Z) * log_comp + Z * log_fbar)
+}
+
+# -----------------------------------------------------------------------------
+# Joint-Decay (two-rate lambda, arithmetic)
+#
+# Two independent decay weights: lam1 governs lag-1 → lag-2;
+# lam2 governs all subsequent lags (lag-2 → lag-3, etc.).
+# Weights: 1, lam1, lam1*lam2, lam1*lam2^2, ..., lam1*lam2^5.
+# Tests whether older history decays faster than recent history.
+# Useful diagnostic for OL where lag-3+ data has very low informativeness.
+# -----------------------------------------------------------------------------
+
+fit_jdecay_tworate <- function(df) {
+  nll <- function(p, data) {
+    lam1  <- plogis(p[6]); lam2 <- plogis(p[7])
+    fbar  <- ewma_tworate_fbar(data, lam1, lam2)
+    base  <- exp(p[1] + p[2] * data$log_expo_sc)
+    Z     <- plogis(p[3] + p[4] * data$log_expo_used_sc)
+    mu    <- pmax((1 - Z) * base + Z * fbar, 1e-8)
+    shape <- exp(p[5])
+    -sum(dgamma(data$lr_rel, shape = shape, rate = shape / mu, log = TRUE) * data$expo_wt)
+  }
+  par_init <- c(alpha = 0, beta = 0, az = -1, bz = 0.5, log_shape = 1,
+                lam1_raw = 0, lam2_raw = -1)
+  lower    <- c(-2, -1, -6, -3, -2, -6, -6)
+  upper    <- c( 2,  1,  3,  5,  5,  6,  6)
+  fit <- multi_optim(nll, par_init, lower, upper, data = df)
+  p   <- fit$par
+  message(sprintf(
+    "  Joint-Decay two-rate: az=%.2f  bz=%.2f  lam1=%.3f  lam2=%.3f",
+    p[3], p[4], plogis(p[6]), plogis(p[7])
+  ))
+  list(type = "jdecay_tworate", par = p)
+}
+
+predict_jdecay_tworate <- function(fit, df_new) {
+  p    <- fit$par
+  fbar <- ewma_tworate_fbar(df_new, plogis(p[6]), plogis(p[7]))
+  base <- exp(p[1] + p[2] * df_new$log_expo_sc)
+  Z    <- plogis(p[3] + p[4] * df_new$log_expo_used_sc)
+  (1 - Z) * base + Z * fbar
+}
+
+# -----------------------------------------------------------------------------
+# Joint-Decay (two-rate lambda, geometric blend)
+#
+# Combines geometric (log-space) blending with two-rate lambda.
+# Best overall model on OL data: wMSE=0.01562 vs pooled GLMM 0.01637.
+# -----------------------------------------------------------------------------
+
+fit_jdecay_geom_tworate <- function(df) {
+  nll <- function(p, data) {
+    lam1     <- plogis(p[6]); lam2 <- plogis(p[7])
+    log_fbar <- ewma_log_tworate_fbar(data, lam1, lam2)
+    log_comp <- p[1] + p[2] * data$log_expo_sc
+    Z        <- plogis(p[3] + p[4] * data$log_expo_used_sc)
+    mu       <- pmax(exp((1 - Z) * log_comp + Z * log_fbar), 1e-8)
+    shape    <- exp(p[5])
+    -sum(dgamma(data$lr_rel, shape = shape, rate = shape / mu, log = TRUE) * data$expo_wt)
+  }
+  par_init <- c(alpha = 0, beta = 0, az = -1, bz = 0.5, log_shape = 1,
+                lam1_raw = 0, lam2_raw = -1)
+  lower    <- c(-2, -1, -6, -3, -2, -6, -6)
+  upper    <- c( 2,  1,  3,  5,  5,  6,  6)
+  fit <- multi_optim(nll, par_init, lower, upper, data = df)
+  p   <- fit$par
+  message(sprintf(
+    "  Joint-Decay geom two-rate: az=%.2f  bz=%.2f  lam1=%.3f  lam2=%.3f",
+    p[3], p[4], plogis(p[6]), plogis(p[7])
+  ))
+  list(type = "jdecay_geom_tworate", par = p)
+}
+
+predict_jdecay_geom_tworate <- function(fit, df_new) {
+  p        <- fit$par
+  log_fbar <- ewma_log_tworate_fbar(df_new, plogis(p[6]), plogis(p[7]))
+  log_comp <- p[1] + p[2] * df_new$log_expo_sc
+  Z        <- plogis(p[3] + p[4] * df_new$log_expo_used_sc)
+  exp((1 - Z) * log_comp + Z * log_fbar)
+}
+
+# -----------------------------------------------------------------------------
 # Joint-Decay (tercile lambda, MAP)
 #
 # MAP version of the MLE tercile model. Priors pull each lambda away from the
@@ -516,14 +670,18 @@ if (exists("LINE_OF_BUSINESS") && LINE_OF_BUSINESS == "ca") {
   message("\n--- Fitting models (Commercial Auto) ---")
 
   models <- list(
-    bs_standard        = fit_bs_standard(df_train),
-    bs_best_patch      = fit_bs_best_patch(df_train),
-    glmm               = fit_glmm(df_train),
-    jdecay_scalar      = fit_jdecay_scalar(df_train),
-    jdecay_scalar_map  = fit_jdecay_scalar_map(df_train),
-    jdecay_cont        = fit_jdecay_continuous(df_train),
-    jdecay_tercile_map = fit_jdecay_tercile_map(df_train),
-    jdecay_tercile     = fit_jdecay_tercile(
+    bs_standard          = fit_bs_standard(df_train),
+    bs_best_patch        = fit_bs_best_patch(df_train),
+    glmm                 = fit_glmm(df_train),
+    glmm_stratified      = fit_glmm_stratified(df_train),
+    jdecay_scalar        = fit_jdecay_scalar(df_train),
+    jdecay_scalar_map    = fit_jdecay_scalar_map(df_train),
+    jdecay_geometric     = fit_jdecay_geometric(df_train),
+    jdecay_cont          = fit_jdecay_continuous(df_train),
+    jdecay_tworate       = fit_jdecay_tworate(df_train),
+    jdecay_geom_tworate  = fit_jdecay_geom_tworate(df_train),
+    jdecay_tercile_map   = fit_jdecay_tercile_map(df_train),
+    jdecay_tercile       = fit_jdecay_tercile(
       df_train,
       rds_path = file.path(MODEL_DIR, "ca_jdecay_tercile.rds")
     )
@@ -531,17 +689,21 @@ if (exists("LINE_OF_BUSINESS") && LINE_OF_BUSINESS == "ca") {
 
   df_test <- df_test %>%
     mutate(
-      pred_market_mean        = 1,
-      pred_last_year          = lr_lag1 / mu_t,
-      pred_bs_standard        = predict_bs_standard(models$bs_standard,   .),
-      pred_bs_best_patch      = predict_bs_best_patch(models$bs_best_patch, .),
-      pred_glmm               = predict(models$glmm, newdata = ., type = "response",
-                                         allow.new.levels = FALSE),
-      pred_jdecay_scalar      = predict_jdecay_scalar(models$jdecay_scalar, .),
-      pred_jdecay_scalar_map  = predict_jdecay_scalar_map(models$jdecay_scalar_map, .),
-      pred_jdecay_cont        = predict_jdecay_continuous(models$jdecay_cont, .),
-      pred_jdecay_tercile_map = predict_jdecay_tercile_map(models$jdecay_tercile_map, .),
-      pred_jdecay_tercile     = predict_jdecay_tercile(models$jdecay_tercile, .)
+      pred_market_mean          = 1,
+      pred_last_year            = lr_lag1 / mu_t,
+      pred_bs_standard          = predict_bs_standard(models$bs_standard,   .),
+      pred_bs_best_patch        = predict_bs_best_patch(models$bs_best_patch, .),
+      pred_glmm                 = predict(models$glmm, newdata = ., type = "response",
+                                           allow.new.levels = FALSE),
+      pred_glmm_stratified      = predict_glmm_stratified(models$glmm_stratified, .),
+      pred_jdecay_scalar        = predict_jdecay_scalar(models$jdecay_scalar, .),
+      pred_jdecay_scalar_map    = predict_jdecay_scalar_map(models$jdecay_scalar_map, .),
+      pred_jdecay_geometric     = predict_jdecay_geometric(models$jdecay_geometric, .),
+      pred_jdecay_cont          = predict_jdecay_continuous(models$jdecay_cont, .),
+      pred_jdecay_tworate       = predict_jdecay_tworate(models$jdecay_tworate, .),
+      pred_jdecay_geom_tworate  = predict_jdecay_geom_tworate(models$jdecay_geom_tworate, .),
+      pred_jdecay_tercile_map   = predict_jdecay_tercile_map(models$jdecay_tercile_map, .),
+      pred_jdecay_tercile       = predict_jdecay_tercile(models$jdecay_tercile, .)
     )
 
   message("Models fitted and test predictions generated.")

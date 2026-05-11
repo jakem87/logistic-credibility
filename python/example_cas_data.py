@@ -47,8 +47,14 @@ from credibility import (
     predict_jdecay_scalar,
     fit_jdecay_scalar_map,
     predict_jdecay_scalar_map,
+    fit_jdecay_geometric,
+    predict_jdecay_geometric,
     fit_jdecay_continuous,
     predict_jdecay_continuous,
+    fit_jdecay_tworate,
+    predict_jdecay_tworate,
+    fit_jdecay_geom_tworate,
+    predict_jdecay_geom_tworate,
     fit_jdecay_tercile,
     predict_jdecay_tercile,
     fit_jdecay_tercile_map,
@@ -87,19 +93,25 @@ def main(make_plot: bool = False) -> None:
 
     # 2. Fit models
     print("\n--- Fitting models ---")
-    fit_bs      = fit_bs_standard(df_train)
-    fit_sc      = fit_jdecay_scalar(df_train)
-    fit_sc_map  = fit_jdecay_scalar_map(df_train)
-    fit_cont    = fit_jdecay_continuous(df_train)
-    fit_trc     = fit_jdecay_tercile(df_train)
-    fit_trc_map = fit_jdecay_tercile_map(df_train)
+    fit_bs           = fit_bs_standard(df_train)
+    fit_sc           = fit_jdecay_scalar(df_train)
+    fit_sc_map       = fit_jdecay_scalar_map(df_train)
+    fit_geom         = fit_jdecay_geometric(df_train)
+    fit_cont         = fit_jdecay_continuous(df_train)
+    fit_tworate      = fit_jdecay_tworate(df_train)
+    fit_geom_tworate = fit_jdecay_geom_tworate(df_train)
+    fit_trc          = fit_jdecay_tercile(df_train)
+    fit_trc_map      = fit_jdecay_tercile_map(df_train)
 
     # 3. Generate test predictions (relative space)
     preds = {
         "Bühlmann-Straub (standard)":         predict_bs_standard(fit_bs, df_test),
         "Joint-Decay (scalar λ)":             predict_jdecay_scalar(fit_sc, df_test),
         "Joint-Decay (scalar λ, MAP)":        predict_jdecay_scalar_map(fit_sc_map, df_test),
+        "Joint-Decay (geometric λ)":          predict_jdecay_geometric(fit_geom, df_test),
         "Joint-Decay (continuous λ)":         predict_jdecay_continuous(fit_cont, df_test),
+        "Joint-Decay (two-rate λ)":           predict_jdecay_tworate(fit_tworate, df_test),
+        "Joint-Decay (geometric two-rate λ)": predict_jdecay_geom_tworate(fit_geom_tworate, df_test),
         "Joint-Decay (tercile λ) [MLE]":      predict_jdecay_tercile(fit_trc, df_test),
         "Joint-Decay (tercile λ, MAP)":       predict_jdecay_tercile_map(fit_trc_map, df_test),
     }
@@ -115,7 +127,10 @@ def main(make_plot: bool = False) -> None:
         "Bühlmann-Straub (standard)",
         "Joint-Decay (scalar λ)",
         "Joint-Decay (scalar λ, MAP)",
+        "Joint-Decay (geometric λ)",
         "Joint-Decay (continuous λ)",
+        "Joint-Decay (two-rate λ)",
+        "Joint-Decay (geometric two-rate λ)",
         "Joint-Decay (tercile λ) [MLE]",
         "Joint-Decay (tercile λ, MAP)",
     ]

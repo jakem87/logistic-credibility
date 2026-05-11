@@ -20,9 +20,13 @@ MODEL_LABELS <- c(
   "Bühlmann-Straub (standard)"              = "pred_bs_standard",
   "B-S (best sequential patch)"                  = "pred_bs_best_patch",
   "GLMM (random intercept + size)"               = "pred_glmm",
+  "GLMM (stratified by tercile)"                 = "pred_glmm_stratified",
   "Joint-Decay (scalar λ)"                  = "pred_jdecay_scalar",
   "Joint-Decay (scalar λ, MAP)"             = "pred_jdecay_scalar_map",
+  "Joint-Decay (geometric λ)"               = "pred_jdecay_geometric",
   "Joint-Decay (continuous λ)"              = "pred_jdecay_cont",
+  "Joint-Decay (two-rate λ)"                = "pred_jdecay_tworate",
+  "Joint-Decay (geometric two-rate λ)"      = "pred_jdecay_geom_tworate",
   "Joint-Decay (tercile λ, MAP)"            = "pred_jdecay_tercile_map",
   "Joint-Decay (tercile λ) [proposed]"      = "pred_jdecay_tercile"
 )
@@ -32,11 +36,9 @@ MODEL_LABELS <- c(
 # -----------------------------------------------------------------------------
 
 eval_model <- function(pred_rel, actual_rel, expo, label, mu_t) {
-  # Convert to absolute scale for wMSE (pred_rel already in relative space)
   pred_abs   <- pred_rel * mu_t
   actual_abs <- actual_rel * mu_t
 
-  # wMSE: exposure-weighted mean squared error
   wmse <- sum(expo * (pred_abs - actual_abs)^2) / sum(expo)
 
   # Gini (normalised): ranks predictions and measures concentration of actual losses
@@ -54,9 +56,12 @@ eval_model <- function(pred_rel, actual_rel, expo, label, mu_t) {
   # Calibration slope: ideal = 1.0; < 1 = over-credentialled (predictions too spread)
   slope <- coef(lm(actual_abs ~ pred_abs, weights = expo))[2]
 
+  log_wmse <- log(wmse)
+
   tibble(
     Model    = label,
     wMSE     = round(wmse, 6),
+    log_wMSE = round(log_wmse, 4),
     Gini_pct = round(gini_pct, 1),
     Slope    = round(slope, 3)
   )

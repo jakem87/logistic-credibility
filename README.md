@@ -32,7 +32,7 @@ source("run_nesting_demo.R")
 | `run_nesting_demo.R` | Self-contained nesting illustration (no Bayesian models, ~20 seconds) |
 | `R/01_data.R` | Data download, filtering, panel construction |
 | `R/02_features.R` | EWMA helpers and multi-start optimiser |
-| `R/03_models_ca.R` | All 8 models fitted on Commercial Auto |
+| `R/03_models_ca.R` | All models fitted on Commercial Auto |
 | `R/04_models_ol.R` | Same models applied to Other Liability |
 | `R/05_evaluate.R` | wMSE, Gini, calibration slope; bootstrap CIs |
 | `R/06_plots.R` | Key figures |
@@ -49,12 +49,20 @@ source("run_nesting_demo.R")
 | Last Year LR | Baseline | Lag-1 loss ratio |
 | Bühlmann-Straub (standard) | MoM | Classical B-S, single pooled K |
 | B-S (best sequential patch) | MoM + manual | Stratified K + size complement + EWMA tercile λ |
-| GLMM | REML | Random intercept per company + size fixed effect |
-| Joint-Decay (scalar λ) | MLE | Logistic Z + single estimated decay parameter |
-| Joint-Decay (continuous λ) | MLE | As above, λ varies continuously with account size |
+| GLMM (random intercept + size) | REML | Random intercept per company + size fixed effect |
+| GLMM (stratified by tercile) | REML | Separate GLMM per size tercile — documented negative result |
+| Joint-Decay (scalar λ) | MLE | Logistic Z + single arithmetic decay parameter |
+| Joint-Decay (scalar λ, MAP) | MAP | As above, weakly-informative priors |
+| Joint-Decay (geometric λ) | MLE | Log-space (geometric) blend; default for log-link GLMs |
+| Joint-Decay (continuous λ) | MLE | λ varies continuously with account size |
+| Joint-Decay (two-rate λ) | MLE | Two independent decay rates: recent vs older history |
+| Joint-Decay (geometric two-rate λ) | MLE | Geometric blend + two-rate λ; best overall OL model |
+| Joint-Decay (tercile λ, MAP) | MAP | Tercile-specific λ with regularising priors |
 | **Joint-Decay (tercile λ)** | **Bayesian** | **Proposed model: size-specific λ + continuous size-slope complement** |
 
 The proposed model achieves ~40% wMSE reduction over standard B-S on the held-out test set (oracle complement: realised µ_t used). In a forecast setting (µ_t replaced by prior-year estimate) this reduces to 29–32% — see paper Section 5.2 and the Notes section below.
+
+Cross-LoB note: on Other Liability the best model is Joint-Decay (geometric two-rate λ) — wMSE improvement ~20% over B-S standard. The geometric blend outperforms arithmetic in OL due to the right-skewed LR distribution; the two-rate λ captures the sharper discount on lag-3+ history. On Commercial Auto, the tercile λ model (arithmetic) remains best.
 
 ---
 
@@ -87,7 +95,7 @@ After running `source("run_ca.R")`:
 
 | File | Contents |
 |------|----------|
-| `outputs/ca/results_ca.csv` | wMSE, Gini, Slope for all 8 models |
+| `outputs/ca/results_ca.csv` | wMSE, log_wMSE, Gini, Slope for all models |
 | `outputs/ca/results_ca_tercile.csv` | Same broken down by size tercile |
 | `outputs/ca/bootstrap_ci_ca.csv` | 90% bootstrap CI on wMSE improvement vs B-S |
 | `outputs/ca/wmse_by_tercile.png` | wMSE improvement figure |

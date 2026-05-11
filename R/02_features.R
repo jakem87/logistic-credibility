@@ -75,6 +75,42 @@ ewma_fbar_vec <- function(df, lam_vec) {
 }
 
 # -----------------------------------------------------------------------------
+# Two-rate EWMA helpers
+#
+# Lag-1 → lag-2 decays at rate lam1; lag-2 → lag-3+ decays further at rate
+# lam2 per step. Weights: 1, lam1, lam1*lam2, lam1*lam2^2, ..., lam1*lam2^5.
+# Reduces to scalar EWMA when lam1 = lam2. Useful when recent history and
+# older history have structurally different informativeness (e.g. OL).
+# -----------------------------------------------------------------------------
+
+ewma_tworate_fbar <- function(df, lam1, lam2) {
+  l2 <- lam1; l3 <- lam1*lam2; l4 <- lam1*lam2^2
+  l5 <- lam1*lam2^3; l6 <- lam1*lam2^4; l7 <- lam1*lam2^5
+  num <- df$lr_lag1_rel*df$expo_lag1 + df$lr_lag2_rel*df$expo_lag2*l2 +
+         df$lr_lag3_rel*df$expo_lag3*l3 + df$lr_lag4_rel*df$expo_lag4*l4 +
+         df$lr_lag5_rel*df$expo_lag5*l5 + df$lr_lag6_rel*df$expo_lag6*l6 +
+         df$lr_lag7_rel*df$expo_lag7*l7
+  den <- df$expo_lag1 + df$expo_lag2*l2 + df$expo_lag3*l3 + df$expo_lag4*l4 +
+         df$expo_lag5*l5 + df$expo_lag6*l6 + df$expo_lag7*l7
+  num / pmax(den, 1e-8)
+}
+
+ewma_log_tworate_fbar <- function(df, lam1, lam2) {
+  l2 <- lam1; l3 <- lam1*lam2; l4 <- lam1*lam2^2
+  l5 <- lam1*lam2^3; l6 <- lam1*lam2^4; l7 <- lam1*lam2^5
+  num <- log(pmax(df$lr_lag1_rel,1e-8))*df$expo_lag1 +
+         log(pmax(df$lr_lag2_rel,1e-8))*df$expo_lag2*l2 +
+         log(pmax(df$lr_lag3_rel,1e-8))*df$expo_lag3*l3 +
+         log(pmax(df$lr_lag4_rel,1e-8))*df$expo_lag4*l4 +
+         log(pmax(df$lr_lag5_rel,1e-8))*df$expo_lag5*l5 +
+         log(pmax(df$lr_lag6_rel,1e-8))*df$expo_lag6*l6 +
+         log(pmax(df$lr_lag7_rel,1e-8))*df$expo_lag7*l7
+  den <- df$expo_lag1 + df$expo_lag2*l2 + df$expo_lag3*l3 + df$expo_lag4*l4 +
+         df$expo_lag5*l5 + df$expo_lag6*l6 + df$expo_lag7*l7
+  num / pmax(den, 1e-8)
+}
+
+# -----------------------------------------------------------------------------
 # Multi-start optimiser
 #
 # Runs L-BFGS-B from N_STARTS random starting points and returns the best
