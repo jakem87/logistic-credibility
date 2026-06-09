@@ -99,8 +99,7 @@ After running `source("run_ca.R")`:
 ## Citation
 
 ```
-Morris, J. (2026). Extending Bühlmann–Straub: Adaptive Experience Credibility
-for Commercial Lines. [arXiv link TBC].
+Morris, J. (2026). Logistic Credibility with Temporal Decay: Extending Bühlmann-Straub for Commercial Lines. [https://arxiv.org/abs/2606.08692].
 ```
 
 ---
