@@ -2,7 +2,7 @@
 
 Companion repository for:
 
-> Morris, J. (2026). *Extending Bühlmann–Straub: Adaptive Experience Credibility for Commercial Lines*. [arXiv link TBC]
+> Morris, J. (2026). *Logistic Credibility with Temporal Decay: Extending Bühlmann-Straub for Commercial Lines*. [https://arxiv.org/abs/2606.08692]
 
 This repository lets you reproduce the main empirical results (Table 3) and cross-LoB validation using publicly available CAS Schedule P data.
 
