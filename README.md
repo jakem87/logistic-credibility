@@ -58,7 +58,7 @@ source("run_nesting_demo.R")
 | LogCred (two-rate λ) | MLE | Two independent decay rates: recent vs older history |
 | LogCred (geometric two-rate λ) | MLE | Geometric blend + two-rate λ; best overall OL model |
 | LogCred (tercile λ, MAP) | MAP | Tercile-specific λ with regularising priors |
-| **LogCred (tercile λ)** | **Bayesian** | **Proposed model: size-specific λ + continuous size-slope complement** |
+| **LogCred (tercile λ)** | **Bayesian** | **Proposed model for CA: size-specific λ + continuous size-slope complement** |
 
 The proposed model achieves ~40% wMSE reduction over standard B-S on the held-out test set (oracle complement: realised µ_t used). In a forecast setting (µ_t replaced by prior-year estimate) this reduces to 29–32% — see paper Section 5.2 and the Notes section below.
 
