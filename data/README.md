@@ -30,7 +30,7 @@ Both files are CAS Schedule P annual statement data. Relevant columns:
 After filtering (`DevelopmentLag == 10`, `EarnedPremNet >= 100`, complete 10-year history, positive loss ratios):
 
 - Commercial Auto: 96 qualifying company groups
-- Other Liability: ~45 qualifying company groups (one extreme outlier removed)
+- Other Liability: ~102 qualifying company groups (one extreme outlier removed)
 
 ## Why data is not committed
 
