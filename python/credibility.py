@@ -466,7 +466,7 @@ def predict_jdecay_continuous(fit: dict, df: pd.DataFrame) -> np.ndarray:
 #
 # Note: without Bayesian priors, estimates can be noisy for terciles with
 # few companies. The R/brms version regularises via Normal(0, 1.5) priors on
-# each lam parameter. Results may therefore differ from Table 3.
+# each lam parameter. Results may therefore differ from Table 2.
 # ---------------------------------------------------------------------------
 
 def fit_jdecay_tercile(df_train: pd.DataFrame) -> dict:

@@ -1,5 +1,5 @@
 # =============================================================================
-# run_ca.R  —  Commercial Auto: reproduce Table 3 of Morris (2026)
+# run_ca.R  —  Commercial Auto: reproduce Table 2 of Morris (2026)
 #
 # Usage:  source("run_ca.R")   or   Rscript run_ca.R
 #
@@ -9,7 +9,7 @@
 #     cached to outputs/ca/models/ for subsequent runs
 #
 # Outputs (written to outputs/ca/):
-#   results_ca.csv         — Table 3 equivalent (wMSE, Gini, Slope per model)
+#   results_ca.csv         — Table 2 equivalent (wMSE, Gini, Slope per model)
 #   results_ca_tercile.csv — Same broken down by size tercile
 #   bootstrap_ci_ca.csv    — 90% bootstrap CI on wMSE improvement vs B-S
 #   wmse_by_tercile.png    — Figure: wMSE improvement by size tercile

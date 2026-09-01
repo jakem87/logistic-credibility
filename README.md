@@ -4,14 +4,14 @@ Companion repository for:
 
 > Morris, J. (2026). *Logistic Credibility with Temporal Decay: Extending Bühlmann-Straub for Commercial Lines*. [https://arxiv.org/abs/2606.08692]
 
-This repository lets you reproduce the main empirical results (Table 3) and cross-LoB validation using publicly available CAS Schedule P data.
+This repository lets you reproduce the main empirical results (Table 2) and cross-LoB validation using publicly available CAS Schedule P data.
 
 ---
 
 ## Quick Start
 
 ```r
-# Commercial Auto — reproduces Table 3
+# Commercial Auto — reproduces Table 2
 source("run_ca.R")
 
 # Other Liability — cross-LoB validation
@@ -47,7 +47,7 @@ source("run_nesting_demo.R")
 |-------|------|-------------|
 | Market Mean | Baseline | Portfolio mean µ_t each year |
 | Last Year LR | Baseline | Lag-1 loss ratio |
-| Bühlmann-Straub (standard) | MoM | Classical B-S, single pooled K |
+| B-S (standard) | MoM | Standard B-S, single pooled K |
 | B-S (best sequential patch) | MoM + manual | Stratified K + size complement + EWMA tercile λ |
 | GLMM (random intercept + size) | REML | Random intercept per company + size fixed effect |
 | GLMM (stratified by tercile) | REML | Separate GLMM per size tercile — documented negative result |

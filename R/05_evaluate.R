@@ -13,7 +13,7 @@
 
 library(dplyr)
 
-# Model labels — order matches Table 3 in the paper
+# Model labels — order matches Table 2 in the paper
 MODEL_LABELS <- c(
   "Market Mean (baseline)"                       = "pred_market_mean",
   "Last Year LR (naive)"                         = "pred_last_year",

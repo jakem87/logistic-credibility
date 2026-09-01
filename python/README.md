@@ -16,15 +16,15 @@ python example_cas_data.py          # downloads CAS data, fits models, prints re
 python example_cas_data.py --plot   # also saves Z-curve plot to outputs/ca_python/
 ```
 
-Expected output (matches Table 3 of the paper within rounding):
+Expected output (matches Table 2 of the paper within rounding):
 
 ```
 Model                       wMSE      Gini_pct  Slope   pct_vs_bs
-Market Mean (baseline)      0.00391   ...
-Last Year LR (naive)        0.00412   ...
-Bühlmann-Straub (standard)  0.00335   ...       ...     0.0
-LogCred (scalar λ)      0.00255   ...       ...    -24.0
-LogCred (continuous λ)  0.00250   ...       ...    -25.5
+Market Mean (baseline)      0.01925   7.0       1.000   45.1
+Last Year LR (naive)        0.01314   75.1      0.628   -1.0
+Bühlmann-Straub (standard)  0.01327   63.8      1.814   0.0
+LogCred (scalar λ)          0.00872   76.5      1.018   -34.3
+LogCred (continuous λ)      0.00836   78.0      1.079   -37.0
 ```
 
 ---

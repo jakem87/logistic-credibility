@@ -1,7 +1,7 @@
 """
 example_cas_data.py — End-to-end example on CAS Commercial Auto data.
 
-Reproduces Table 3 rows 3, 6, 7 (B-S standard, LogCred scalar λ,
+Reproduces Table 2 rows 3, 6, 7 (B-S standard, LogCred scalar λ,
 LogCred continuous λ) using Python. Results should match the R output
 within rounding (same optimisation problem, different implementation).
 
@@ -10,8 +10,8 @@ Expected wMSE values (CA test set AY 2006-2007, absolute scale):
   LogCred scalar λ     ≈ 0.00872  (~34% improvement)
   LogCred continuous λ ≈ 0.00838  (~37% improvement)
 
-Note: The Bayesian tercile-λ model (proposed model, Table 3 row 8) achieves
-~29-32% improvement but requires brms/Stan. Use the R implementation for it:
+Note: The Bayesian tercile-λ model (proposed model, Table 2 row 8) achieves
+~38% improvement (forecast setting) but requires brms/Stan. Use the R implementation for it:
   source("run_ca.R")
 
 Usage:
@@ -146,8 +146,8 @@ def main(make_plot: bool = False) -> None:
     print(f"\nResults saved to: {out_csv}")
 
     # 5. Equivalence check
-    # Python ML models give ~17-20% wMSE improvement over B-S.
-    # The paper's 29-32% figure is from the Bayesian tercile-λ model (R only).
+    # Python ML models give ~34-37% wMSE improvement over B-S.
+    # The paper's ~38% figure is from the Bayesian tercile-λ model (R only).
     print("\n--- Model comparison notes ---")
     bs_row  = results[results["Model"].str.contains("Bühlmann-Straub", regex=False)]
     sc_row  = results[results["Model"] == "LogCred (scalar λ)"]
@@ -157,7 +157,7 @@ def main(make_plot: bool = False) -> None:
         pct_imp = 100 * (bs_wmse - sc_wmse) / bs_wmse
         print(f"  B-S wMSE:          {bs_wmse:.5f}")
         print(f"  Scalar-λ wMSE:     {sc_wmse:.5f}  ({pct_imp:.1f}% improvement)")
-        print(f"  (Paper 29-32% improvement is from the Bayesian tercile-λ model — R only)")
+        print(f"  (Paper ~38% improvement is from the Bayesian tercile-λ model — R only)")
 
     # 6. Optional Z-curve plot
     if make_plot:

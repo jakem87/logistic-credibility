@@ -2,7 +2,7 @@
 # 06_plots.R  —  Key figures
 #
 # Produces:
-#   results_table.png    — wMSE / Gini / Slope for all 8 models (Table 3 equivalent)
+#   results_table.png    — wMSE / Gini / Slope for all 8 models (Table 2 equivalent)
 #   wmse_by_tercile.png  — wMSE improvement vs B-S by size tercile
 #   zcurves.png          — Fitted Z as a function of log exposure (tercile lambda model)
 #   lambda_posteriors.png — Lambda posterior distributions by size tercile
