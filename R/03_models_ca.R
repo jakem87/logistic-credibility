@@ -10,14 +10,14 @@
 #   fit_bs_best_patch()         B-S stratified K + size comp + EWMA tercile lambda
 #   fit_glmm()                  GLMM (random intercept + size fixed effect)
 #   fit_glmm_stratified()       GLMM fitted separately per size tercile (negative result)
-#   fit_jdecay_scalar()         Joint-Decay (scalar lambda, arithmetic, ML)
-#   fit_jdecay_scalar_map()     Joint-Decay (scalar lambda, MAP)
-#   fit_jdecay_geometric()      Joint-Decay (scalar lambda, geometric/log-space blend, ML)
-#   fit_jdecay_continuous()     Joint-Decay (continuous lambda, ML)
-#   fit_jdecay_tworate()        Joint-Decay (two-rate lambda, arithmetic, ML)
-#   fit_jdecay_geom_tworate()   Joint-Decay (two-rate lambda, geometric blend, ML)
-#   fit_jdecay_tercile_map()    Joint-Decay (tercile lambda, MAP)
-#   fit_jdecay_tercile()        Joint-Decay (tercile lambda, continuous comp, Bayesian) <- proposed
+#   fit_jdecay_scalar()         LogCred (scalar lambda, arithmetic, ML)
+#   fit_jdecay_scalar_map()     LogCred (scalar lambda, MAP)
+#   fit_jdecay_geometric()      LogCred (scalar lambda, geometric/log-space blend, ML)
+#   fit_jdecay_continuous()     LogCred (continuous lambda, ML)
+#   fit_jdecay_tworate()        LogCred (two-rate lambda, arithmetic, ML)
+#   fit_jdecay_geom_tworate()   LogCred (two-rate lambda, geometric blend, ML)
+#   fit_jdecay_tercile_map()    LogCred (tercile lambda, MAP)
+#   fit_jdecay_tercile()        LogCred (tercile lambda, continuous comp, Bayesian) <- proposed
 #
 # Requires: df_train, df_test from 01_data.R; helpers from 02_features.R.
 # =============================================================================
@@ -257,7 +257,7 @@ predict_glmm_stratified <- function(fit, df_new) {
 }
 
 # -----------------------------------------------------------------------------
-# Joint-Decay (scalar lambda, ML)
+# LogCred (scalar lambda, ML)
 #
 # theta_hat_rel = (1-Z) * exp(alpha + beta*log_expo_sc) + Z * fbar_rel(lambda)
 # Z = logistic(az + bz * log_expo_used_sc)
@@ -280,7 +280,7 @@ fit_jdecay_scalar <- function(df) {
   fit <- multi_optim(nll, par_init, lower, upper, data = df)
   p   <- fit$par
   message(sprintf(
-    "  Joint-Decay scalar: alpha=%.3f  beta=%.3f  az=%.2f  bz=%.2f  lam=%.3f",
+    "  LogCred scalar: alpha=%.3f  beta=%.3f  az=%.2f  bz=%.2f  lam=%.3f",
     p[1], p[2], p[3], p[4], plogis(p[6])
   ))
   list(type = "jdecay_scalar", par = p)
@@ -296,7 +296,7 @@ predict_jdecay_scalar <- function(fit, df_new) {
 }
 
 # -----------------------------------------------------------------------------
-# Joint-Decay (continuous lambda, ML)
+# LogCred (continuous lambda, ML)
 #
 # As above but lambda varies continuously with mean log NEP:
 # lambda_i = logistic(lam0 + lam1 * log_mean_expo_sc)
@@ -323,7 +323,7 @@ fit_jdecay_continuous <- function(df) {
   fit <- multi_optim(nll, par_init, lower, upper, data = df)
   p   <- fit$par
   message(sprintf(
-    "  Joint-Decay continuous: az=%.2f  bz=%.2f  lam0=%.3f  lam1=%.3f",
+    "  LogCred continuous: az=%.2f  bz=%.2f  lam0=%.3f  lam1=%.3f",
     p[3], p[4], p[6], p[7]
   ))
   list(type = "jdecay_continuous", par = p)
@@ -339,7 +339,7 @@ predict_jdecay_continuous <- function(fit, df_new) {
 }
 
 # -----------------------------------------------------------------------------
-# Joint-Decay (tercile lambda, Bayesian) — PROPOSED MODEL
+# LogCred (tercile lambda, Bayesian) — PROPOSED MODEL
 #
 # The proposed model from the paper: continuous size-slope complement
 # exp(alpha + beta*log_expo_sc) combined with three free decay parameters
@@ -355,7 +355,7 @@ predict_jdecay_continuous <- function(fit, df_new) {
 
 fit_jdecay_tercile <- function(df, rds_path) {
   if (!REFIT && file.exists(rds_path)) {
-    message("  Joint-Decay (tercile lambda): loading cached model")
+    message("  LogCred (tercile lambda): loading cached model")
     return(readRDS(rds_path))
   }
 
@@ -408,7 +408,7 @@ fit_jdecay_tercile <- function(df, rds_path) {
 
   p <- as_draws_df(fit)
   message(sprintf(
-    "  Joint-Decay (tercile lambda): lam_Sm=%.3f  lam_Md=%.3f  lam_Lg=%.3f  az=%.2f  bz=%.2f",
+    "  LogCred (tercile lambda): lam_Sm=%.3f  lam_Md=%.3f  lam_Lg=%.3f  az=%.2f  bz=%.2f",
     plogis(mean(p$b_lamSm_Intercept)),
     plogis(mean(p$b_lamMd_Intercept)),
     plogis(mean(p$b_lamLg_Intercept)),
@@ -442,7 +442,7 @@ predict_jdecay_tercile <- function(fit, df_new) {
 }
 
 # -----------------------------------------------------------------------------
-# Joint-Decay (scalar lambda, MAP) — paper Appendix, Listing 4
+# LogCred (scalar lambda, MAP) — paper Appendix, Listing 4
 #
 # Adds weakly-informative log-prior penalties to the MLE objective.
 # Priors: Normal(0, 1) on all logit-scale parameters (alpha, beta, az, bz,
@@ -474,7 +474,7 @@ fit_jdecay_scalar_map <- function(df) {
   fit <- multi_optim(nlp, par_init, lower, upper, data = df)
   p   <- fit$par
   message(sprintf(
-    "  Joint-Decay scalar (MAP): alpha=%.3f  beta=%.3f  az=%.2f  bz=%.2f  lam=%.3f",
+    "  LogCred scalar (MAP): alpha=%.3f  beta=%.3f  az=%.2f  bz=%.2f  lam=%.3f",
     p[1], p[2], p[3], p[4], plogis(p[6])
   ))
   list(type = "jdecay_scalar_map", par = p)
@@ -484,7 +484,7 @@ fit_jdecay_scalar_map <- function(df) {
 predict_jdecay_scalar_map <- predict_jdecay_scalar
 
 # -----------------------------------------------------------------------------
-# Joint-Decay (geometric blend, scalar lambda)
+# LogCred (geometric blend, scalar lambda)
 #
 # Blends in log-space: log(mu) = (1-Z)*log_comp + Z*log_fbar
 # where log_fbar is the exposure-weighted EWMA of log(lr_rel).
@@ -510,7 +510,7 @@ fit_jdecay_geometric <- function(df) {
   fit <- multi_optim(nll, par_init, lower, upper, data = df)
   p   <- fit$par
   message(sprintf(
-    "  Joint-Decay geometric: alpha=%.3f  beta=%.3f  az=%.2f  bz=%.2f  lam=%.3f",
+    "  LogCred geometric: alpha=%.3f  beta=%.3f  az=%.2f  bz=%.2f  lam=%.3f",
     p[1], p[2], p[3], p[4], plogis(p[6])
   ))
   list(type = "jdecay_geometric", par = p)
@@ -526,7 +526,7 @@ predict_jdecay_geometric <- function(fit, df_new) {
 }
 
 # -----------------------------------------------------------------------------
-# Joint-Decay (two-rate lambda, arithmetic)
+# LogCred (two-rate lambda, arithmetic)
 #
 # Two independent decay weights: lam1 governs lag-1 → lag-2;
 # lam2 governs all subsequent lags (lag-2 → lag-3, etc.).
@@ -552,7 +552,7 @@ fit_jdecay_tworate <- function(df) {
   fit <- multi_optim(nll, par_init, lower, upper, data = df)
   p   <- fit$par
   message(sprintf(
-    "  Joint-Decay two-rate: az=%.2f  bz=%.2f  lam1=%.3f  lam2=%.3f",
+    "  LogCred two-rate: az=%.2f  bz=%.2f  lam1=%.3f  lam2=%.3f",
     p[3], p[4], plogis(p[6]), plogis(p[7])
   ))
   list(type = "jdecay_tworate", par = p)
@@ -567,7 +567,7 @@ predict_jdecay_tworate <- function(fit, df_new) {
 }
 
 # -----------------------------------------------------------------------------
-# Joint-Decay (two-rate lambda, geometric blend)
+# LogCred (two-rate lambda, geometric blend)
 #
 # Combines geometric (log-space) blending with two-rate lambda.
 # Best overall model on OL data: wMSE=0.01562 vs pooled GLMM 0.01637.
@@ -590,7 +590,7 @@ fit_jdecay_geom_tworate <- function(df) {
   fit <- multi_optim(nll, par_init, lower, upper, data = df)
   p   <- fit$par
   message(sprintf(
-    "  Joint-Decay geom two-rate: az=%.2f  bz=%.2f  lam1=%.3f  lam2=%.3f",
+    "  LogCred geom two-rate: az=%.2f  bz=%.2f  lam1=%.3f  lam2=%.3f",
     p[3], p[4], plogis(p[6]), plogis(p[7])
   ))
   list(type = "jdecay_geom_tworate", par = p)
@@ -605,7 +605,7 @@ predict_jdecay_geom_tworate <- function(fit, df_new) {
 }
 
 # -----------------------------------------------------------------------------
-# Joint-Decay (tercile lambda, MAP)
+# LogCred (tercile lambda, MAP)
 #
 # MAP version of the MLE tercile model. Priors pull each lambda away from the
 # boundary — particularly helpful when lambda_Mid hits lam ~ 1 (all weight on
@@ -640,7 +640,7 @@ fit_jdecay_tercile_map <- function(df) {
   fit <- multi_optim(nlp, par_init, lower, upper, data = df)
   p   <- fit$par
   message(sprintf(
-    "  Joint-Decay tercile (MAP): az=%.2f  bz=%.2f  lam_Sm=%.3f  lam_Md=%.3f  lam_Lg=%.3f",
+    "  LogCred tercile (MAP): az=%.2f  bz=%.2f  lam_Sm=%.3f  lam_Md=%.3f  lam_Lg=%.3f",
     p[3], p[4], plogis(p[6]), plogis(p[7]), plogis(p[8])
   ))
   list(type = "jdecay_tercile_map", par = p)

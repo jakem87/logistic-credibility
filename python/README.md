@@ -2,7 +2,7 @@
 
 Self-contained Python implementation of the core credibility models from Morris (2026).
 
-Covers the ML models (B-S standard, Joint-Decay scalar λ, Joint-Decay continuous λ).
+Covers the ML models (B-S standard, LogCred scalar λ, LogCred continuous λ).
 The Bayesian tercile-λ model (the proposed model) requires brms/Stan and is only
 available in the R implementation — see `../run_ca.R`.
 
@@ -23,8 +23,8 @@ Model                       wMSE      Gini_pct  Slope   pct_vs_bs
 Market Mean (baseline)      0.00391   ...
 Last Year LR (naive)        0.00412   ...
 Bühlmann-Straub (standard)  0.00335   ...       ...     0.0
-Joint-Decay (scalar λ)      0.00255   ...       ...    -24.0
-Joint-Decay (continuous λ)  0.00250   ...       ...    -25.5
+LogCred (scalar λ)      0.00255   ...       ...    -24.0
+LogCred (continuous λ)  0.00250   ...       ...    -25.5
 ```
 
 ---
@@ -39,9 +39,9 @@ Joint-Decay (continuous λ)  0.00250   ...       ...    -25.5
 | `ewma_fbar_vec(df, lam_vec)` | Arithmetic EWMA (per-row lambda vector) |
 | `fit_bs_standard(df_train)` | MoM Bühlmann-Straub |
 | `predict_bs_standard(fit, df)` | B-S predictions |
-| `fit_jdecay_scalar(df_train)` | Joint-Decay scalar λ (ML via L-BFGS-B) |
+| `fit_jdecay_scalar(df_train)` | LogCred scalar λ (ML via L-BFGS-B) |
 | `predict_jdecay_scalar(fit, df)` | Predictions |
-| `fit_jdecay_continuous(df_train)` | Joint-Decay continuous λ (ML) |
+| `fit_jdecay_continuous(df_train)` | LogCred continuous λ (ML) |
 | `predict_jdecay_continuous(fit, df)` | Predictions |
 | `eval_model(pred_rel, actual_rel, expo, mu_t, label)` | wMSE, Gini, slope |
 | `eval_all_models(df_test, predictions)` | Evaluate dict of models |

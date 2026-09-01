@@ -58,8 +58,8 @@ plot_wmse_by_tercile <- function(results_trc, lob_label) {
   key_models <- c(
     "Bühlmann-Straub (standard)",
     "B-S (best sequential patch)",
-    "Joint-Decay (scalar λ)",
-    "Joint-Decay (tercile λ) [proposed]",
+    "LogCred (scalar λ)",
+    "LogCred (tercile λ) [proposed]",
     "GLMM (random intercept + size)"
   )
 
@@ -113,8 +113,8 @@ plot_zcurves <- function(models, df_train, lob_label) {
   df_z <- tibble(
     log_expo_used_sc      = expo_grid,
     `B-S`                 = bs_curve,
-    `Joint-Decay (scalar λ)`   = logistic_z,
-    `Joint-Decay (tercile λ)`  = tercile_z
+    `LogCred (scalar λ)`   = logistic_z,
+    `LogCred (tercile λ)`  = tercile_z
   ) %>%
     pivot_longer(-log_expo_used_sc, names_to = "Model", values_to = "Z")
 

@@ -4,7 +4,7 @@ credibility.py — Core implementation of adaptive experience credibility.
 Implements the models from Morris (2026) "Adaptive Experience Credibility:
 A Logistic Extension to Bühlmann-Straub" using pure Python/NumPy/SciPy.
 
-Covers: B-S standard (MoM), Joint-Decay scalar λ (ML), Joint-Decay
+Covers: B-S standard (MoM), LogCred scalar λ (ML), LogCred
 continuous λ (ML), and evaluation metrics (wMSE, Gini, calibration slope).
 
 The Bayesian tercile-λ model (the proposed model) requires brms/Stan and is only
@@ -339,11 +339,11 @@ def predict_bs_standard(fit: dict, df: pd.DataFrame) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Joint-Decay scalar λ (ML)
+# LogCred scalar λ (ML)
 # ---------------------------------------------------------------------------
 
 def _nll_gamma(params: np.ndarray, df: pd.DataFrame, mode: str = "scalar") -> float:
-    """Negative log-likelihood for Joint-Decay model under Gamma."""
+    """Negative log-likelihood for LogCred model under Gamma."""
     alpha, beta, az, bz, log_shape = params[:5]
     wt    = df["expo_wt"].values
     Z     = expit(az + bz * df["log_expo_used_sc"].values)
@@ -411,19 +411,19 @@ def _multi_optim(obj, x0: np.ndarray, bounds: list, n_starts: int = 5, seed: int
 
 
 def fit_jdecay_scalar(df_train: pd.DataFrame) -> dict:
-    """Fit Joint-Decay model with a single scalar decay parameter λ (ML)."""
+    """Fit LogCred model with a single scalar decay parameter λ (ML)."""
     x0     = np.array([0.0, 0.0, -1.0, 0.5, 1.0, 0.0])
     bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6)]
 
     res = _multi_optim(lambda p: _nll_gamma(p, df_train, "scalar"), x0, bounds)
     p   = res.x
-    print(f"  Joint-Decay scalar: alpha={p[0]:.3f}  beta={p[1]:.3f}  "
+    print(f"  LogCred scalar: alpha={p[0]:.3f}  beta={p[1]:.3f}  "
           f"az={p[2]:.2f}  bz={p[3]:.2f}  lam={float(expit(p[5])):.3f}")
     return {"type": "jdecay_scalar", "par": p}
 
 
 def predict_jdecay_scalar(fit: dict, df: pd.DataFrame) -> np.ndarray:
-    """Predict from fitted scalar-λ Joint-Decay model."""
+    """Predict from fitted scalar-λ LogCred model."""
     p    = fit["par"]
     lam  = float(expit(p[5]))
     fbar = ewma_fbar(df, lam)
@@ -433,23 +433,23 @@ def predict_jdecay_scalar(fit: dict, df: pd.DataFrame) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Joint-Decay continuous λ (ML)
+# LogCred continuous λ (ML)
 # ---------------------------------------------------------------------------
 
 def fit_jdecay_continuous(df_train: pd.DataFrame) -> dict:
-    """Fit Joint-Decay model where λ varies continuously with account size (ML)."""
+    """Fit LogCred model where λ varies continuously with account size (ML)."""
     x0     = np.array([0.0, 0.0, -1.0, 0.5, 1.0, 0.0, 0.0])
     bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6), (-5, 5)]
 
     res = _multi_optim(lambda p: _nll_gamma(p, df_train, "continuous"), x0, bounds)
     p   = res.x
-    print(f"  Joint-Decay continuous: az={p[2]:.2f}  bz={p[3]:.2f}  "
+    print(f"  LogCred continuous: az={p[2]:.2f}  bz={p[3]:.2f}  "
           f"lam0={p[5]:.3f}  lam1={p[6]:.3f}")
     return {"type": "jdecay_continuous", "par": p}
 
 
 def predict_jdecay_continuous(fit: dict, df: pd.DataFrame) -> np.ndarray:
-    """Predict from fitted continuous-λ Joint-Decay model."""
+    """Predict from fitted continuous-λ LogCred model."""
     p       = fit["par"]
     lam_vec = expit(p[5] + p[6] * df["log_mean_expo_sc"].values)
     fbar    = ewma_fbar_vec(df, lam_vec)
@@ -459,7 +459,7 @@ def predict_jdecay_continuous(fit: dict, df: pd.DataFrame) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Joint-Decay tercile λ (MLE)
+# LogCred tercile λ (MLE)
 #
 # Three free decay parameters (lamSm, lamMd, lamLg) estimated jointly with
 # the continuous complement exp(alpha + beta*log_expo_sc) via MLE.
@@ -470,20 +470,20 @@ def predict_jdecay_continuous(fit: dict, df: pd.DataFrame) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 def fit_jdecay_tercile(df_train: pd.DataFrame) -> dict:
-    """Fit Joint-Decay model with tercile-specific decay parameters (MLE)."""
+    """Fit LogCred model with tercile-specific decay parameters (MLE)."""
     x0     = np.array([0.0, 0.0, -1.0, 0.5, 1.0, 0.0, 0.0, 0.0])
     bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6), (-6, 6), (-6, 6)]
 
     res = _multi_optim(lambda p: _nll_gamma(p, df_train, "tercile"), x0, bounds)
     p   = res.x
-    print(f"  Joint-Decay tercile (MLE): az={p[2]:.2f}  bz={p[3]:.2f}  "
+    print(f"  LogCred tercile (MLE): az={p[2]:.2f}  bz={p[3]:.2f}  "
           f"lam_Sm={float(expit(p[5])):.3f}  lam_Md={float(expit(p[6])):.3f}  "
           f"lam_Lg={float(expit(p[7])):.3f}")
     return {"type": "jdecay_tercile_mle", "par": p}
 
 
 def predict_jdecay_tercile(fit: dict, df: pd.DataFrame) -> np.ndarray:
-    """Predict from fitted tercile-λ Joint-Decay model."""
+    """Predict from fitted tercile-λ LogCred model."""
     p       = fit["par"]
     lam_sm  = float(expit(p[5]))
     lam_md  = float(expit(p[6]))
@@ -548,7 +548,7 @@ def _log_prior_tercile(params: np.ndarray) -> float:
 
 
 def fit_jdecay_scalar_map(df_train: pd.DataFrame) -> dict:
-    """Fit Joint-Decay scalar-lambda model via MAP (MLE + weakly-informative priors)."""
+    """Fit LogCred scalar-lambda model via MAP (MLE + weakly-informative priors)."""
     def nlp(params):
         return _nll_gamma(params, df_train, "scalar") - _log_prior_scalar(params)
 
@@ -556,7 +556,7 @@ def fit_jdecay_scalar_map(df_train: pd.DataFrame) -> dict:
     bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6)]
     res = _multi_optim(nlp, x0, bounds)
     p   = res.x
-    print(f"  Joint-Decay scalar (MAP): az={p[2]:.2f}  bz={p[3]:.2f}  lam={float(expit(p[5])):.3f}")
+    print(f"  LogCred scalar (MAP): az={p[2]:.2f}  bz={p[3]:.2f}  lam={float(expit(p[5])):.3f}")
     return {"type": "jdecay_scalar_map", "par": p}
 
 
@@ -566,7 +566,7 @@ def predict_jdecay_scalar_map(fit: dict, df: pd.DataFrame) -> np.ndarray:
 
 
 def fit_jdecay_tercile_map(df_train: pd.DataFrame) -> dict:
-    """Fit Joint-Decay tercile-lambda model via MAP (MLE + weakly-informative priors).
+    """Fit LogCred tercile-lambda model via MAP (MLE + weakly-informative priors).
 
     Regularises lambda estimates away from the boundary — particularly useful
     when lam_Md hits ~1.0 in the MLE fit.
@@ -578,7 +578,7 @@ def fit_jdecay_tercile_map(df_train: pd.DataFrame) -> dict:
     bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6), (-6, 6), (-6, 6)]
     res = _multi_optim(nlp, x0, bounds)
     p   = res.x
-    print(f"  Joint-Decay tercile (MAP): az={p[2]:.2f}  bz={p[3]:.2f}  "
+    print(f"  LogCred tercile (MAP): az={p[2]:.2f}  bz={p[3]:.2f}  "
           f"lam_Sm={float(expit(p[5])):.3f}  lam_Md={float(expit(p[6])):.3f}  "
           f"lam_Lg={float(expit(p[7])):.3f}")
     return {"type": "jdecay_tercile_map", "par": p}
@@ -590,7 +590,7 @@ def predict_jdecay_tercile_map(fit: dict, df: pd.DataFrame) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Joint-Decay geometric blend (scalar λ)
+# LogCred geometric blend (scalar λ)
 #
 # Blends in log-space: log(mu) = (1-Z)*log_comp + Z*log_fbar.
 # Better calibrated than arithmetic blend for right-skewed LR distributions
@@ -598,12 +598,12 @@ def predict_jdecay_tercile_map(fit: dict, df: pd.DataFrame) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 def fit_jdecay_geometric(df_train: pd.DataFrame) -> dict:
-    """Fit Joint-Decay model with geometric (log-space) blend, scalar lambda."""
+    """Fit LogCred model with geometric (log-space) blend, scalar lambda."""
     x0     = np.array([0.0, 0.0, -1.0, 0.5, 1.0, 0.0])
     bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6)]
     res = _multi_optim(lambda p: _nll_gamma(p, df_train, "geometric"), x0, bounds)
     p   = res.x
-    print(f"  Joint-Decay geometric: alpha={p[0]:.3f}  beta={p[1]:.3f}  "
+    print(f"  LogCred geometric: alpha={p[0]:.3f}  beta={p[1]:.3f}  "
           f"az={p[2]:.2f}  bz={p[3]:.2f}  lam={float(expit(p[5])):.3f}")
     return {"type": "jdecay_geometric", "par": p}
 
@@ -619,19 +619,19 @@ def predict_jdecay_geometric(fit: dict, df: pd.DataFrame) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Joint-Decay two-rate λ (arithmetic and geometric)
+# LogCred two-rate λ (arithmetic and geometric)
 #
 # Two independent decay parameters: lam1 (lag-1→2), lam2 (all subsequent).
 # Best overall OL model: geometric two-rate wMSE=0.01562 vs GLMM 0.01637.
 # ---------------------------------------------------------------------------
 
 def fit_jdecay_tworate(df_train: pd.DataFrame) -> dict:
-    """Fit Joint-Decay two-rate lambda model (arithmetic blend)."""
+    """Fit LogCred two-rate lambda model (arithmetic blend)."""
     x0     = np.array([0.0, 0.0, -1.0, 0.5, 1.0, 0.0, -1.0])
     bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6), (-6, 6)]
     res = _multi_optim(lambda p: _nll_gamma(p, df_train, "tworate"), x0, bounds)
     p   = res.x
-    print(f"  Joint-Decay two-rate: az={p[2]:.2f}  bz={p[3]:.2f}  "
+    print(f"  LogCred two-rate: az={p[2]:.2f}  bz={p[3]:.2f}  "
           f"lam1={float(expit(p[5])):.3f}  lam2={float(expit(p[6])):.3f}")
     return {"type": "jdecay_tworate", "par": p}
 
@@ -646,12 +646,12 @@ def predict_jdecay_tworate(fit: dict, df: pd.DataFrame) -> np.ndarray:
 
 
 def fit_jdecay_geom_tworate(df_train: pd.DataFrame) -> dict:
-    """Fit Joint-Decay two-rate lambda model (geometric/log-space blend)."""
+    """Fit LogCred two-rate lambda model (geometric/log-space blend)."""
     x0     = np.array([0.0, 0.0, -1.0, 0.5, 1.0, 0.0, -1.0])
     bounds = [(-2, 2), (-1, 1), (-6, 3), (-3, 5), (-2, 5), (-6, 6), (-6, 6)]
     res = _multi_optim(lambda p: _nll_gamma(p, df_train, "geom_tworate"), x0, bounds)
     p   = res.x
-    print(f"  Joint-Decay geom two-rate: az={p[2]:.2f}  bz={p[3]:.2f}  "
+    print(f"  LogCred geom two-rate: az={p[2]:.2f}  bz={p[3]:.2f}  "
           f"lam1={float(expit(p[5])):.3f}  lam2={float(expit(p[6])):.3f}")
     return {"type": "jdecay_geom_tworate", "par": p}
 
@@ -744,7 +744,7 @@ def plot_zcurves(fit_scalar: dict, fit_bs: dict, df_train: pd.DataFrame,
                  lob_label: str = "", fit_tercile_map: dict = None, ax=None):
     """Plot logistic Z vs log exposure (standardised scale).
 
-    Shows B-S hyperbolic curve Z = w/(w+K), Joint-Decay scalar λ logistic,
+    Shows B-S hyperbolic curve Z = w/(w+K), LogCred scalar λ logistic,
     and optionally the MAP tercile λ logistic (same Z curve, different λ).
     """
     if ax is None:
@@ -764,16 +764,16 @@ def plot_zcurves(fit_scalar: dict, fit_bs: dict, df_train: pd.DataFrame,
     bs_z = expo_used_raw / (expo_used_raw + K_bs)
     ax.plot(grid, bs_z, linestyle="--", color="tab:blue", label="B-S")
 
-    # Joint-Decay scalar λ
+    # LogCred scalar λ
     p = fit_scalar["par"]
     z_scalar = expit(p[2] + p[3] * grid)
-    ax.plot(grid, z_scalar, color="tab:orange", label="Joint-Decay (scalar λ)")
+    ax.plot(grid, z_scalar, color="tab:orange", label="LogCred (scalar λ)")
 
-    # Joint-Decay tercile λ MAP (optional — same Z logistic form)
+    # LogCred tercile λ MAP (optional — same Z logistic form)
     if fit_tercile_map is not None:
         p_map = fit_tercile_map["par"]
         z_map = expit(p_map[2] + p_map[3] * grid)
-        ax.plot(grid, z_map, color="tab:green", label="Joint-Decay (tercile λ, MAP)")
+        ax.plot(grid, z_map, color="tab:green", label="LogCred (tercile λ, MAP)")
 
     ax.set_ylim(0, 1)
     ax.set_xlabel("Log exposure used (standardised)")

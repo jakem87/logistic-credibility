@@ -51,18 +51,18 @@ source("run_nesting_demo.R")
 | B-S (best sequential patch) | MoM + manual | Stratified K + size complement + EWMA tercile λ |
 | GLMM (random intercept + size) | REML | Random intercept per company + size fixed effect |
 | GLMM (stratified by tercile) | REML | Separate GLMM per size tercile — documented negative result |
-| Joint-Decay (scalar λ) | MLE | Logistic Z + single arithmetic decay parameter |
-| Joint-Decay (scalar λ, MAP) | MAP | As above, weakly-informative priors |
-| Joint-Decay (geometric λ) | MLE | Log-space (geometric) blend; default for log-link GLMs |
-| Joint-Decay (continuous λ) | MLE | λ varies continuously with account size |
-| Joint-Decay (two-rate λ) | MLE | Two independent decay rates: recent vs older history |
-| Joint-Decay (geometric two-rate λ) | MLE | Geometric blend + two-rate λ; best overall OL model |
-| Joint-Decay (tercile λ, MAP) | MAP | Tercile-specific λ with regularising priors |
-| **Joint-Decay (tercile λ)** | **Bayesian** | **Proposed model: size-specific λ + continuous size-slope complement** |
+| LogCred (scalar λ) | MLE | Logistic Z + single arithmetic decay parameter |
+| LogCred (scalar λ, MAP) | MAP | As above, weakly-informative priors |
+| LogCred (geometric λ) | MLE | Log-space (geometric) blend; default for log-link GLMs |
+| LogCred (continuous λ) | MLE | λ varies continuously with account size |
+| LogCred (two-rate λ) | MLE | Two independent decay rates: recent vs older history |
+| LogCred (geometric two-rate λ) | MLE | Geometric blend + two-rate λ; best overall OL model |
+| LogCred (tercile λ, MAP) | MAP | Tercile-specific λ with regularising priors |
+| **LogCred (tercile λ)** | **Bayesian** | **Proposed model: size-specific λ + continuous size-slope complement** |
 
 The proposed model achieves ~40% wMSE reduction over standard B-S on the held-out test set (oracle complement: realised µ_t used). In a forecast setting (µ_t replaced by prior-year estimate) this reduces to 29–32% — see paper Section 5.2 and the Notes section below.
 
-Cross-LoB note: on Other Liability the best model is Joint-Decay (geometric two-rate λ) — wMSE improvement ~20% over B-S standard. The geometric blend outperforms arithmetic in OL due to the right-skewed LR distribution; the two-rate λ captures the sharper discount on lag-3+ history. On Commercial Auto, the tercile λ model (arithmetic) remains best.
+Cross-LoB note: on Other Liability the best model is LogCred (geometric two-rate λ) — wMSE improvement ~20% over B-S standard. The geometric blend outperforms arithmetic in OL due to the right-skewed LR distribution; the two-rate λ captures the sharper discount on lag-3+ history. On Commercial Auto, the tercile λ model (arithmetic) remains best.
 
 ---
 
@@ -71,7 +71,7 @@ Cross-LoB note: on Other Liability the best model is Joint-Decay (geometric two-
 ```r
 install.packages(c("dplyr", "tidyr", "ggplot2", "glmmTMB", "scales"))
 
-# For Bayesian model (Joint-Decay tercile lambda):
+# For Bayesian model (LogCred tercile lambda):
 install.packages("brms")
 # brms requires Stan — install cmdstanr or rstan:
 # https://mc-stan.org/cmdstanr/  or  https://mc-stan.org/rstan/
@@ -118,4 +118,4 @@ for Commercial Lines. [arXiv link TBC].
 - **Oracle complement**: predictions use the realised portfolio mean µ_t for the test year (AY 2006–2007). In deployment, µ_T must be forecast. Replacing the oracle with a prior-year or trend-based estimate increases wMSE by 7–11% while leaving model rankings unchanged (see paper Section 5.2).
 - **Data proxy**: each "account" here is an entire insurance company. Company-aggregate loss ratios are smoother than individual-account loss ratios; Z and λ estimates from this study should be treated as illustrative rather than direct deployment defaults.
 - **GLMM limitation**: the GLMM cannot score new accounts (random effect = 0 for unseen companies). In this balanced panel all test companies appear in training, so this limitation is latent.
-- **MLE vs Bayesian discrepancy**: the paper fits Joint-Decay scalar λ and continuous λ via Bayesian inference (brms/Stan) with weakly-informative priors. This repo implements them as pure MLE (`optim`/`scipy.optimize`). Results will differ slightly — Bayesian priors regularise λ away from boundary values, which matters most when a tercile has few companies. The MAP variants (`fit_jdecay_scalar_map`, `fit_jdecay_tercile_map`) add equivalent log-prior penalties to the MLE objective and produce results much closer to the paper's Bayesian estimates without requiring Stan.
+- **MLE vs Bayesian discrepancy**: the paper fits LogCred scalar λ and continuous λ via Bayesian inference (brms/Stan) with weakly-informative priors. This repo implements them as pure MLE (`optim`/`scipy.optimize`). Results will differ slightly — Bayesian priors regularise λ away from boundary values, which matters most when a tercile has few companies. The MAP variants (`fit_jdecay_scalar_map`, `fit_jdecay_tercile_map`) add equivalent log-prior penalties to the MLE objective and produce results much closer to the paper's Bayesian estimates without requiring Stan.

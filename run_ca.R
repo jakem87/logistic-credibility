@@ -4,8 +4,8 @@
 # Usage:  source("run_ca.R")   or   Rscript run_ca.R
 #
 # Runtime:
-#   ML models (B-S, GLMM, Joint-Decay scalar/continuous): < 2 min
-#   Bayesian model (Joint-Decay tercile lambda): ~10 min first run;
+#   ML models (B-S, GLMM, LogCred scalar/continuous): < 2 min
+#   Bayesian model (LogCred tercile lambda): ~10 min first run;
 #     cached to outputs/ca/models/ for subsequent runs
 #
 # Outputs (written to outputs/ca/):

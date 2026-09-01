@@ -1,14 +1,14 @@
 """
 example_cas_data.py — End-to-end example on CAS Commercial Auto data.
 
-Reproduces Table 3 rows 3, 6, 7 (B-S standard, Joint-Decay scalar λ,
-Joint-Decay continuous λ) using Python. Results should match the R output
+Reproduces Table 3 rows 3, 6, 7 (B-S standard, LogCred scalar λ,
+LogCred continuous λ) using Python. Results should match the R output
 within rounding (same optimisation problem, different implementation).
 
 Expected wMSE values (CA test set AY 2006-2007, absolute scale):
   B-S standard             ≈ 0.01327  (reference)
-  Joint-Decay scalar λ     ≈ 0.00872  (~34% improvement)
-  Joint-Decay continuous λ ≈ 0.00838  (~37% improvement)
+  LogCred scalar λ     ≈ 0.00872  (~34% improvement)
+  LogCred continuous λ ≈ 0.00838  (~37% improvement)
 
 Note: The Bayesian tercile-λ model (proposed model, Table 3 row 8) achieves
 ~29-32% improvement but requires brms/Stan. Use the R implementation for it:
@@ -106,14 +106,14 @@ def main(make_plot: bool = False) -> None:
     # 3. Generate test predictions (relative space)
     preds = {
         "Bühlmann-Straub (standard)":         predict_bs_standard(fit_bs, df_test),
-        "Joint-Decay (scalar λ)":             predict_jdecay_scalar(fit_sc, df_test),
-        "Joint-Decay (scalar λ, MAP)":        predict_jdecay_scalar_map(fit_sc_map, df_test),
-        "Joint-Decay (geometric λ)":          predict_jdecay_geometric(fit_geom, df_test),
-        "Joint-Decay (continuous λ)":         predict_jdecay_continuous(fit_cont, df_test),
-        "Joint-Decay (two-rate λ)":           predict_jdecay_tworate(fit_tworate, df_test),
-        "Joint-Decay (geometric two-rate λ)": predict_jdecay_geom_tworate(fit_geom_tworate, df_test),
-        "Joint-Decay (tercile λ) [MLE]":      predict_jdecay_tercile(fit_trc, df_test),
-        "Joint-Decay (tercile λ, MAP)":       predict_jdecay_tercile_map(fit_trc_map, df_test),
+        "LogCred (scalar λ)":             predict_jdecay_scalar(fit_sc, df_test),
+        "LogCred (scalar λ, MAP)":        predict_jdecay_scalar_map(fit_sc_map, df_test),
+        "LogCred (geometric λ)":          predict_jdecay_geometric(fit_geom, df_test),
+        "LogCred (continuous λ)":         predict_jdecay_continuous(fit_cont, df_test),
+        "LogCred (two-rate λ)":           predict_jdecay_tworate(fit_tworate, df_test),
+        "LogCred (geometric two-rate λ)": predict_jdecay_geom_tworate(fit_geom_tworate, df_test),
+        "LogCred (tercile λ) [MLE]":      predict_jdecay_tercile(fit_trc, df_test),
+        "LogCred (tercile λ, MAP)":       predict_jdecay_tercile_map(fit_trc_map, df_test),
     }
     # Market mean and last-year baselines
     preds["Market Mean (baseline)"] = np.ones(len(df_test))
@@ -125,14 +125,14 @@ def main(make_plot: bool = False) -> None:
         "Market Mean (baseline)",
         "Last Year LR (naive)",
         "Bühlmann-Straub (standard)",
-        "Joint-Decay (scalar λ)",
-        "Joint-Decay (scalar λ, MAP)",
-        "Joint-Decay (geometric λ)",
-        "Joint-Decay (continuous λ)",
-        "Joint-Decay (two-rate λ)",
-        "Joint-Decay (geometric two-rate λ)",
-        "Joint-Decay (tercile λ) [MLE]",
-        "Joint-Decay (tercile λ, MAP)",
+        "LogCred (scalar λ)",
+        "LogCred (scalar λ, MAP)",
+        "LogCred (geometric λ)",
+        "LogCred (continuous λ)",
+        "LogCred (two-rate λ)",
+        "LogCred (geometric two-rate λ)",
+        "LogCred (tercile λ) [MLE]",
+        "LogCred (tercile λ, MAP)",
     ]
     preds_ordered = {k: preds[k] for k in display_order if k in preds}
     results = eval_all_models(df_test, preds_ordered)
@@ -150,7 +150,7 @@ def main(make_plot: bool = False) -> None:
     # The paper's 29-32% figure is from the Bayesian tercile-λ model (R only).
     print("\n--- Model comparison notes ---")
     bs_row  = results[results["Model"].str.contains("Bühlmann-Straub", regex=False)]
-    sc_row  = results[results["Model"] == "Joint-Decay (scalar λ)"]
+    sc_row  = results[results["Model"] == "LogCred (scalar λ)"]
     if len(bs_row) == 1 and len(sc_row) == 1:
         bs_wmse = float(bs_row["wMSE"].iloc[0])
         sc_wmse = float(sc_row["wMSE"].iloc[0])
