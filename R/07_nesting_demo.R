@@ -16,6 +16,7 @@
 # =============================================================================
 
 library(dplyr)
+library(tidyr)
 library(ggplot2)
 
 set.seed(46)
@@ -99,9 +100,10 @@ sigma2_within <- train_df %>%
   summarise(
     w_i  = first(w_i),
     s2_i = sum(expo * (claims / expo - f_i)^2) / (n() - 1),
+    k_i  = n(),
     .groups = "drop"
   ) %>%
-  summarise(s2 = sum(w_i * s2_i) / sum(w_i)) %>%
+  summarise(s2 = sum((k_i - 1) * s2_i) / sum(k_i - 1)) %>%
   pull(s2)
 
 ss_b  <- sum(ins_train$w_i * (ins_train$f_i - f_bar)^2)

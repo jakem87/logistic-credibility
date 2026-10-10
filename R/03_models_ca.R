@@ -55,9 +55,10 @@ fit_bs_standard <- function(df) {
     summarise(
       w_i  = sum(expo),
       s2_i = sum(expo * (lr_rel - sum(expo * lr_rel) / sum(expo))^2) / (n() - 1),
+      k_i  = n(),
       .groups = "drop"
     ) %>%
-    summarise(s2 = sum(w_i * s2_i) / sum(w_i)) %>%
+    summarise(s2 = sum((k_i - 1) * s2_i) / sum(k_i - 1)) %>%
     pull(s2)
 
   ss_b   <- sum(ins$w_i * (ins$f_i - f_bar_rel)^2)
@@ -110,9 +111,10 @@ fit_bs_best_patch <- function(df) {
         summarise(
           w_i  = sum(expo),
           s2_i = sum(expo * (lr_rel - sum(expo * lr_rel) / sum(expo))^2) / (n() - 1),
+          k_i  = n(),
           .groups = "drop"
         ) %>%
-        summarise(s2 = sum(w_i * s2_i) / sum(w_i)) %>%
+        summarise(s2 = sum((k_i - 1) * s2_i) / sum(k_i - 1)) %>%
         pull(s2)
 
       ss_b  <- sum(ins$w_i * (ins$f_i - f_bar_rel)^2)

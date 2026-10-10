@@ -60,9 +60,9 @@ source("run_nesting_demo.R")
 | LogCred (tercile λ, MAP) | MAP | Tercile-specific λ with regularising priors |
 | **LogCred (tercile λ)** | **Bayesian** | **Proposed model for CA: size-specific λ + continuous size-slope complement** |
 
-The proposed model achieves ~40% wMSE reduction over standard B-S on the held-out test set (oracle complement: realised µ_t used). In a forecast setting (µ_t replaced by prior-year estimate) this reduces to ~38% (90% CI: 26–50%) — see paper Section 3.3 and the Notes section below.
+The proposed model achieves ~27% wMSE reduction over standard B-S on the held-out test set (oracle complement: realised µ_t used; 90% bootstrap CI 9–44%). In a forecast setting (µ_t replaced by prior-year estimate) this is ~25% (90% CI: 7–42%) — see paper Section 3.3 and the Notes section below.
 
-Cross-LoB note: on Other Liability the best model is LogCred (geometric two-rate λ) — wMSE improvement ~20% over B-S standard. The geometric blend outperforms arithmetic in OL due to the right-skewed LR distribution; the two-rate λ captures the sharper discount on lag-3+ history. On Commercial Auto, the tercile λ model (arithmetic) remains best.
+Cross-LoB note: on Other Liability the best model is LogCred (geometric two-rate λ) — wMSE improvement ~4% over B-S standard (most other variants are level with B-S there, so OL mainly supports the decay-gradient finding rather than a predictive advantage). The geometric blend outperforms arithmetic in OL due to the right-skewed LR distribution; the two-rate λ captures the sharper discount on lag-3+ history. On Commercial Auto, the tercile λ model (arithmetic) remains best.
 
 ---
 
@@ -114,7 +114,7 @@ Morris, J. (2026). Logistic Credibility with Temporal Decay: Extending Bühlmann
 
 ## Notes
 
-- **Oracle complement**: predictions use the realised portfolio mean µ_t for the test year (AY 2006–2007). In deployment, µ_T must be forecast. Replacing the oracle with a prior-year estimate increases wMSE by ~2.5% while leaving model rankings unchanged (see paper Section 3.3).
+- **Oracle complement**: predictions use the realised portfolio mean µ_t for the test year (AY 2006–2007). In deployment, µ_T must be forecast. Replacing the oracle with a prior-year estimate increases wMSE by ~3% while leaving model rankings unchanged (see paper Section 3.3).
 - **Data proxy**: each "account" here is an entire insurance company. Company-aggregate loss ratios are smoother than individual-account loss ratios; Z and λ estimates from this study should be treated as illustrative rather than direct deployment defaults.
 - **GLMM limitation**: the GLMM cannot score new accounts (random effect = 0 for unseen companies). In this balanced panel all test companies appear in training, so this limitation is latent.
 - **MLE vs Bayesian discrepancy**: the paper fits LogCred scalar λ and continuous λ via Bayesian inference (brms/Stan) with weakly-informative priors. This repo implements them as pure MLE (`optim`/`scipy.optimize`). Results will differ slightly — Bayesian priors regularise λ away from boundary values, which matters most when a tercile has few companies. The MAP variants (`fit_jdecay_scalar_map`, `fit_jdecay_tercile_map`) add equivalent log-prior penalties to the MLE objective and produce results much closer to the paper's Bayesian estimates without requiring Stan.

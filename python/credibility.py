@@ -309,10 +309,11 @@ def fit_bs_standard(df_train: pd.DataFrame) -> dict:
         n_g = len(g)
         # Matches R: sum(expo * (lr_rel - wmean)^2) / (n - 1)
         s2 = float(np.sum(wg * (fg - f_ig) ** 2)) / max(n_g - 1, 1)
-        s2_parts.append((grcode, float(wg.sum()), s2))
+        s2_parts.append((grcode, float(wg.sum()), s2, n_g))
 
-    s2_df = pd.DataFrame(s2_parts, columns=["GRCODE", "w_i", "s2"])
-    sigma2_hat = float(np.average(s2_df["s2"], weights=s2_df["w_i"]))
+    s2_df = pd.DataFrame(s2_parts, columns=["GRCODE", "w_i", "s2", "k_i"])
+    # Textbook B-S pooling: weight each company's s2 by its degrees of freedom (k_i - 1)
+    sigma2_hat = float(np.average(s2_df["s2"], weights=np.maximum(s2_df["k_i"] - 1, 0)))
 
     ss_b  = float(np.average((ins["f_i"] - f_bar_rel) ** 2, weights=ins["w_i"])) * W_tot
     var_b = max((ss_b - (n_i - 1) * sigma2_hat) / c_w, 1e-8)
