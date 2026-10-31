@@ -6,6 +6,8 @@ Companion repository for:
 
 This repository lets you reproduce the main empirical results (Table 2) and cross-LoB validation using publicly available CAS Schedule P data.
 
+> **Relationship to the paper.** This is a condensed reimplementation of the pipeline behind the paper's tables, with its own Bayesian fits. The headline rows agree with the paper to within about 0.1 × 10⁻³ wMSE (the scalar-λ row differs by that much, being a separate fit). It does not include every comparison row in the paper (stratified and rolling B-S, the b_Z = 1 comparators, the B-S-form-Z diagnostic, the dispersion model) or the prior-sensitivity, hierarchical-Z and test-year analyses. Last checked against the paper: 31 October 2026.
+
 ---
 
 ## Quick Start

@@ -4,7 +4,7 @@
 # Produces:
 #   results_table.png    — wMSE / Gini / Slope for all 8 models (Table 2 equivalent)
 #   wmse_by_tercile.png  — wMSE improvement vs B-S by size tercile
-#   zcurves.png          — Fitted Z as a function of log exposure (tercile lambda model)
+#   zcurves.png          — Fitted Z vs lookback NEP: B-S per company (training-period NEP), logistic curves, tercile-lambda 95% band
 #   lambda_posteriors.png — Lambda posterior distributions by size tercile
 #
 # Requires: results, results_tercile from 05_evaluate.R; models from 03_models_ca.R
@@ -84,50 +84,63 @@ plot_wmse_by_tercile <- function(results_trc, lob_label) {
 # -----------------------------------------------------------------------------
 
 plot_zcurves <- function(models, df_train, lob_label) {
-  # Build a grid of log_expo_used values spanning the training range
-  expo_grid <- seq(
-    min(df_train$log_expo_used_sc), max(df_train$log_expo_used_sc),
-    length.out = 200
-  )
-
-  # Logistic Z (scalar lambda model)
-  p_sc <- models$jdecay_scalar$par
-  logistic_z <- plogis(p_sc[3] + p_sc[4] * expo_grid)
-
-  # Tercile lambda model Z
-  if (!is.null(models$jdecay_tercile)) {
-    p_lt <- as_draws_df(models$jdecay_tercile)
-    az_lt <- mean(p_lt$b_az_Intercept)
-    bz_lt <- mean(p_lt$b_bz_Intercept)
-    tercile_z <- plogis(az_lt + bz_lt * expo_grid)
-  } else {
-    tercile_z <- NA_real_
-  }
-
-  K_bs <- models$bs_standard$K_hat
+  # Standardisation of the Z covariate, as used when the logistic models were fitted
   leu_mean <- mean(log(df_train$expo_used))
   leu_sd   <- sd(log(df_train$expo_used))
-  expo_used_raw <- exp(expo_grid * leu_sd + leu_mean)
-  bs_curve <- expo_used_raw / (expo_used_raw + K_bs)
 
-  df_z <- tibble(
-    log_expo_used_sc      = expo_grid,
-    `B-S`                 = bs_curve,
-    `LogCred (scalar λ)`   = logistic_z,
-    `LogCred (tercile λ)`  = tercile_z
-  ) %>%
-    pivot_longer(-log_expo_used_sc, names_to = "Model", values_to = "Z")
+  # Standard B-S weight per company: Z = w_i / (w_i + K), where w_i is the company's
+  # TOTAL training-period NEP (the quantity B-S actually uses), not the lookback exposure.
+  K_bs <- models$bs_standard$K_hat
+  co <- df_train %>%
+    group_by(GRCODE) %>%
+    summarise(w_i = sum(expo), log_lb = log(mean(expo_used)), .groups = "drop") %>%
+    mutate(Z_bs = w_i / (w_i + K_bs))
 
-  ggplot(df_z, aes(x = log_expo_used_sc, y = Z, colour = Model)) +
-    geom_line(linewidth = 1) +
+  # Logistic curves over the range of company mean lookback NEP
+  x_grid <- seq(min(co$log_lb), max(co$log_lb), length.out = 200)
+  x_sc   <- (x_grid - leu_mean) / leu_sd
+
+  p_sc <- models$jdecay_scalar$par
+  df_curve <- tibble(x = x_grid, scalar = plogis(p_sc[3] + p_sc[4] * x_sc))
+
+  df_band <- NULL
+  if (!is.null(models$jdecay_tercile)) {
+    p_lt <- as_draws_df(models$jdecay_tercile)
+    zd   <- plogis(outer(p_lt$b_az_Intercept, rep(1, length(x_sc))) +
+                   outer(p_lt$b_bz_Intercept, x_sc))
+    df_curve$tercile <- colMeans(zd)
+    df_band <- tibble(x = x_grid,
+                      lo = apply(zd, 2, quantile, 0.025),
+                      hi = apply(zd, 2, quantile, 0.975))
+  }
+
+  brk_m <- c(0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500, 1000)   # NEP is in $000s
+  p <- ggplot() +
+    geom_point(data = co, aes(x = log_lb, y = Z_bs, colour = "B-S (one dot per company)"),
+               alpha = 0.8, size = 1.8)
+  if (!is.null(df_band)) {
+    p <- p + geom_ribbon(data = df_band, aes(x = x, ymin = lo, ymax = hi),
+                         fill = "#003781", alpha = 0.18)
+  }
+  p <- p + geom_line(data = df_curve, aes(x = x, y = scalar, colour = "LogCred (scalar \u03bb)"), linewidth = 1)
+  if (!is.null(df_band)) {
+    p <- p + geom_line(data = df_curve, aes(x = x, y = tercile, colour = "LogCred (tercile \u03bb), 95% band"), linewidth = 1.2)
+  }
+  p +
+    scale_x_continuous(breaks = log(brk_m * 1000), labels = brk_m) +
     scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
-    scale_colour_brewer(palette = "Set1") +
+    scale_colour_manual(values = c("B-S (one dot per company)" = "grey45",
+                                   "LogCred (scalar \u03bb)" = "#5dade2",
+                                   "LogCred (tercile \u03bb), 95% band" = "#003781"), name = NULL) +
     labs(
-      title   = sprintf("Fitted credibility weight Z vs log exposure — %s", lob_label),
-      x       = "Log exposure (standardised, training scale)",
+      title   = sprintf("Fitted credibility weight Z vs exposure \u2014 %s", lob_label),
+      x       = "Mean annual lookback NEP, $M (log scale)",
       y       = "Credibility weight Z",
-      caption = "B-S: Z = w/(w+K), hyperbolic in exposure. Logistic: Z = expit(a + b·log_expo_used_sc)."
-    )
+      caption = paste0("B-S: Z = w/(w+K) with w = training-period NEP, so dots scatter about a smooth curve
+when plotted against lookback NEP. ",
+                       "Logistic: Z = expit(a + b\u00b7log lookback NEP).")
+    ) +
+    theme(legend.position = "bottom")
 }
 
 # -----------------------------------------------------------------------------
